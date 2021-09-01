@@ -1,0 +1,2557 @@
+---
+title: "Simulation"
+author: "Leiwen Gao"
+date: "8/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE, warning = FALSE, message = FALSE)
+```
+
+Here are reproducible codes for results in Section 3 (Simulation).
+
+### 1. Load California map and packages
+```{r}
+##### Libraries for sptial information in map, map projection and map ploting
+library(maps)
+#Import California map with counties
+ca.county = map("county","california", fill=TRUE, plot=FALSE)
+library(mapproj)
+library(spdep)
+library(maptools)
+library(classInt)
+library(RColorBrewer)
+library(ggpubr)
+
+##### Libraries for matrix, distribution and math computation
+library(mvtnorm)
+library(matrixStats)
+library(blockmatrix)
+library(Matrix)
+library(invgamma)
+library(mnormt)
+library(MASS)
+library(Hmisc) #rcorr
+library(gtools) #permutation
+library(monomvn) #
+library(caret) #sensitivity and specificity
+
+##### Libraries for JAGS
+library(rjags)
+library(R2jags)
+
+##### Draw plots
+library(ggplot2)
+
+##### Data management
+library(tidyr)
+
+##### Import and export documents
+library(knitr)
+library(readr)
+
+##### Bayesian inference
+library(LaplacesDemon)
+
+##### Model selection
+library(bridgesampling)
+
+```
+
+### 2. Data generation for discrete random effects
+```{r}
+county.ID <- sapply(strsplit(ca.county$names, ","), function(x) x[2])
+ca.poly = map2SpatialPolygons(ca.county, IDs=county.ID)
+ca.coords = coordinates(ca.poly)
+n_county <- length(county.ID)
+
+
+## Adjacency matrix
+ca.neighbors = poly2nb(ca.poly)
+n=length(ca.neighbors)
+
+Adj=sapply(ca.neighbors,function(x,n) {v=rep(0,n);v[x]=1;v},n)
+colnames(Adj)=county.ID
+
+num_edge <- sum(Adj)/2
+
+neighborvec0 = NULL
+neighbor_list0 = NULL
+for(i in 1:(n_county-1)){
+  for(j in (i+1):n_county){
+    if(Adj[i,j] == 1){
+      neighborvec0 = c(neighborvec0, paste(i, ",", j, sep=""))
+      neighbor_list0 = rbind(neighbor_list0, c(i,j))
+    }
+  }
+}
+
+## Reorder the map
+ca.latrange=round(quantile(ca.coords[,2],c(0.25,0.75)))
+ca.albersproj=mapproject(ca.coords[,1],ca.coords[,2],projection = "albers",param=ca.latrange)
+projmat=cbind(ca.albersproj$x,ca.albersproj$y)
+
+perm=order(ca.albersproj$x-ca.albersproj$y)
+Adj_new=Adj[perm,perm]
+
+n=nrow(Adj_new)
+ni=rowSums(Adj_new)
+maxn=max(ni)
+neimat=matrix(0,n,maxn)
+neighbors=lapply(1:n,function(x) which(Adj_new[x,]==1))
+#N(i): 2:n
+dneighbors=sapply(2:n,function(i) intersect(neighbors[[i]],1:(i-1)))
+#n<i: 2:n
+dni=sapply(dneighbors,length)
+original_perm = 1:58
+index2=c(1,which(dni==0)+1)
+
+final_perm=c(original_perm[perm][index2],
+             original_perm[perm][-index2])
+final_perm[order(final_perm)]
+
+Minc = Adj[final_perm,final_perm]
+projmat=projmat[final_perm,]
+dmat=as.matrix(dist(projmat))
+dmat=dmat/mean(dmat[which(Minc==1)])
+n=nrow(Minc)
+ni=rowSums(Minc)
+maxn=max(ni)
+neimat=matrix(0,n,maxn)
+neighbors=lapply(1:n,function(x) which(Minc[x,]==1))
+#N(i): 2:n
+dneighbors=sapply(2:n,function(i) intersect(neighbors[[i]],1:(i-1)))
+#n<i: 2:n
+
+dni=sapply(dneighbors,length)
+nmax=max(dni)
+cni=cumsum(dni)
+dneimat=sapply(dneighbors, function(nei,nmax,n) c(nei,rep(n+1,nmax+1-length(nei))),nmax,n)
+udnei=unlist(dneighbors)
+
+ni_wo = sapply(neighbors,length)
+cni_wo = cumsum(ni_wo)
+udnei_wo = unlist(neighbors)
+cn = c(0, cni)
+ns = dni
+
+region = seq(1:n)
+index = list()
+for(i in 1:(n-2)){
+  index[[i]] = region[-(udnei[(cn[i+1] + 1):(cn[i+1] + ns[i+1])])]
+}
+index1 = unlist(index)
+mns = max(dni) + 1
+
+#CAR
+D=matrix(0,n_county,n_county)
+for(i in 1:n) D[i,i]=ni[i]
+
+### Specify Covariance matrix for spatial components
+q=2
+rho = c(0.2, 0.8)
+
+G1 = rho[1]^dmat
+G2 = rho[2]^dmat
+
+a11 = 1
+a12 = 1
+a22 = 1
+A = matrix(c(a11, a12, 0, a22), 2, 2)
+kprod = kronecker(A, diag(n))
+invQ = as.matrix(bdiag(G1, G2))
+Vr = as.matrix(kprod %*% invQ %*% t(kprod))
+Cov = rep(0, n)
+for(i in 1:n){
+  Cov[i] <- Vr[i, i+n]/(sqrt(Vr[i,i])*sqrt(Vr[n+i, n+i]))
+}
+
+alpha = 1
+sigmas_sq = 4
+
+### Functions to generate discrete random effects
+
+# compute stick-breaking weights
+makeprobs<-function(v){
+  m<-length(v) 
+  p <-matrix(0,m,m)
+  for(j in 2:m){
+    p[1:(j-1),j]<-1
+  }
+  probs<-exp(log(v)+log(1-v)%*%p)
+  probs[m]<-1-sum(probs[1:(m-1)])
+  probs
+}
+
+
+# compute u weights from F_r and prob
+makeu<- function(F_r,probs){
+  
+  m1=length(F_r)
+  m2=length(probs)
+  u=rep(0,m1)
+  for (k in 1:m1){
+    for (l in 1:m2){
+      if (sum(probs[1:(l-1)])<F_r[k] && F_r[k]<sum(probs[1:l])){
+        u[k]=l
+      }
+      if (u[k]==0){
+        u[k]=1
+      }
+    }
+  }
+  return(u)
+}
+
+K=15
+phi_true1 = list()
+phi_true2 = list()
+nq = n*q
+
+### Generate discrete random effects
+seed=25
+set.seed(seed)
+r = rmvnorm(1, rep(0, nq), Vr)
+v = rbeta(K,1,alpha)
+while(v[1] > 0.8){v = rbeta(K,1,alpha)}
+probvec = makeprobs(v)
+F_r=pnorm(r,0,sqrt(diag(Vr)))
+u=makeu(F_r,probvec)
+
+thetavec = rnorm(K, 0, sqrt(sigmas_sq))
+phivec = thetavec[u]
+
+phi_true1 = phivec[1:n][order(final_perm)]
+phi_true2 = phivec[(n+1):(2*n)][order(final_perm)]
+```
+
+Figure 1: A map of the simulated data for random effects for disease 1 (left) and disease 2 (right)
+showing five different levels, each with its own value.
+
+```{r}
+ca.poly$phi_true1 <- phi_true1
+ca.poly$phi_true2 <- phi_true2
+
+values <- sort(unique(phi_true1))
+color.pallete = brewer.pal(length(values),"Blues")
+col1 <- rep(0, length(phi_true1))
+for(i in 1:length(values)){
+  col1[phi_true1 == values[i]] <- color.pallete[i]
+}
+
+col2 <- rep(0, length(phi_true2))
+for(i in 1:length(values)){
+  col2[phi_true2 == values[i]] <- color.pallete[i]
+}
+
+par(mfrow=c(1,2))
+plot(ca.poly, col = col1)
+leg.txt1 = c("-2.67", "-1.73", "-0.98","0.42","0.77")
+plot(ca.poly, col = col2)
+par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("center", legend=leg.txt1, xpd = TRUE, cex=1.25, bty="n", horiz = FALSE, 
+       fill = color.pallete)
+```
+
+### 3. True difference boundary
+```{r}
+true_diff1 <- NULL
+true_diff2 <- NULL
+true_diff3 <- NULL
+true_diff4 <- NULL
+for(i in 1:nrow(neighbor_list0)){
+  if(phi_true1[neighbor_list0[i,1]] != phi_true1[neighbor_list0[i,2]]){
+    true_diff1 <- c(true_diff1, 1)
+  }else{
+    true_diff1 <- c(true_diff1, 0)
+  }
+  if(phi_true2[neighbor_list0[i,1]] != phi_true2[neighbor_list0[i,2]]){
+    true_diff2 <- c(true_diff2, 1)
+  }else{
+    true_diff2 <- c(true_diff2, 0)
+  }
+  if(phi_true1[neighbor_list0[i,1]] != phi_true2[neighbor_list0[i,2]]){
+    true_diff3 <- c(true_diff3, 1)
+  }else{
+    true_diff3 <- c(true_diff3, 0)
+  }
+  if(phi_true2[neighbor_list0[i,1]] != phi_true1[neighbor_list0[i,2]]){
+    true_diff4 <- c(true_diff4, 1)
+  }else{
+    true_diff4 <- c(true_diff4, 0)
+  }
+}
+
+sum(true_diff1)
+sum(true_diff2)
+sum(true_diff3)
+sum(true_diff4)
+
+true_diffm <- rbind(true_diff1, true_diff2, true_diff3, true_diff4)
+```
+
+### 4. Simulation 
+
+#### 4.1 MDAGAR
+
+```{r}
+### Functions for MCMC updates
+
+# compute stick-breaking weights
+
+makeprobs<-function(v){
+  m<-length(v) 
+  p <-matrix(0,m,m)
+  for(j in 2:m){
+    p[1:(j-1),j]<-1
+  }
+  probs<-exp(log(v)+log(1-v)%*%p)
+  probs[m]<-1-sum(probs[1:(m-1)])
+  probs
+}
+
+
+# compute u weights from F_r and prob 
+ 
+makeu<- function(F_r,probs){
+  
+  m1=length(F_r)
+  m2=length(probs)
+  u=rep(0,m1)
+  for (k in 1:m1){
+    for (l in 1:m2){
+      if (sum(probs[1:(l-1)])<F_r[k] && F_r[k]<sum(probs[1:l])){
+        u[k]=l
+      }
+      if (u[k]==0){
+        u[k]=1
+      }
+    }
+  }
+  return(u)
+}
+
+
+# Compute presicion matrices of DAGAR 
+
+Dinv_new <- function(Rho, n, cn, ns, udnei,q){
+  Tau <- list()
+  B <- list()
+  invD <- list()
+  for(i in 1:q){
+    Tau[[i]] <- diag(n)
+    B[[i]] <- matrix(0, n, n)
+    for(j in 3:n){
+      Tau[[i]][j,j] <- (1 + (ns[j-1] - 1) * Rho[i]^2) / (1 - Rho[i]^2)
+      for(k in (udnei[(cn[j-1] + 1):(cn[j-1] + ns[j-1])])){
+        B[[i]][j,k] <- Rho[i] / (1 + (ns[j-1] - 1) * Rho[i]^2)
+      }
+    }
+    invD[[i]] <- t(diag(n) - B[[i]]) %*% Tau[[i]] %*% (diag(n) - B[[i]])
+  }
+  return(invD)
+}
+# Jacobian matrix for updating A
+Jacob_A <- function(A){
+  prod = 1
+  for(i in 1:nrow(A)){
+    prod = prod*A[i,i]^(nrow(A)-i+1)
+  }
+  return(2^nrow(A)*prod)
+}
+
+### MDAGAR model
+# Metropolis within Gibbs Sampler for MCMC updating 
+ARDP_joint_diff<-function(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q = 2, n.atoms=15, runs=10000, burn=1000){
+  #y:       data
+  #x:       covariates
+  #n.atoms: number of atoms in the mixture dist.
+  #theta:      the theta's (iid from baseline) in the model
+  #alpha:     v~beta(1,alpha)
+  #u:       the index indicator of spatial random effect 
+  #rho:     sptatial autocorrelation parameter in DAGAR
+  #Minc:    0-1 adjacency matrix 
+  #V_r:     covariance matrix of joint MDAGAR
+  #Q:       presicion matrix of independent DAGAR
+  #r:       random effects following DAGAR
+  #F_r:     Marginal CDF of r
+  #taued:   presicion in Baseline of DP for disease d   
+  #taus:    precision for theta
+  
+  
+  
+  
+  nq<-length(y)
+  n <- nq / q
+  p<-ncol(X)
+  y1 <- y[1:n]
+  y2 <- y[(n+1):(2*n)]
+  
+  sigmasq_beta = 10000
+  keepbeta=matrix(0,runs,p)
+  keepphi=matrix(0,runs,nq)
+  keeptheta=matrix(0,runs,n.atoms)
+  keepu=matrix(0,runs,nq)
+  keeprho1=keeprho2=keeptaue1=keeptaue2 = keeptaus = rep(0,runs)
+  keepv=matrix(0,runs,n.atoms)
+  keepr=matrix(0,runs,nq)
+  keepFr=matrix(0,runs,nq)
+  
+  
+  #initial values
+  
+  theta=rep(0,n.atoms)
+  beta<-rep(0,p)
+  taue1=1
+  taue2=1
+  taus = 1
+  
+  c=2
+  d=0.1
+  d2 = 1
+  v<-rep(.5,n.atoms)
+  probs=makeprobs(v)
+  
+  #A matrix
+  rho=c(0.1, 0.1)
+  eta = log(rho/(1-rho))
+  A = matrix(0, q, q)
+  for(i in 1:q){
+    for(j in 1:i){
+      if(j == i){
+        A[i, j] = exp(rnorm(1))
+      }else{
+        A[i, j] = rnorm(1)
+      }
+    }
+  }
+  
+  Q = Dinv_new(Rho = rho, n, cn, ns, udnei,q=2)
+  invQ1 = solve(Q[[1]])
+  invQ2 = solve(Q[[2]])
+  f1 = rmvnorm(1, rep(0, n), invQ1)
+  f2 = rmvnorm(1, rep(0, n), invQ2)
+  f = c(f1, f2)
+  kprod = kronecker(A, diag(n))
+  invQ = as.matrix(bdiag(invQ1, invQ2))
+  r = kprod %*% f
+  
+  Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
+  #r = rmvnorm(1, rep(0, nq), Vr)
+  
+  
+  F_r=pnorm(r,0,sqrt(diag(Vr)))
+  u=makeu(F_r,probs)
+  phi <- theta[u]
+  
+  nu = 2
+  R = 0.1 * diag(q)
+  
+  
+  acceptr=acceptv=acceptrho=acceptA=0
+  
+  count<-afterburn<-0
+  burn = burn + 1
+
+  for(iter in 1:runs){
+    #print(iter)
+    if(iter %% 100 == 0){
+      print(iter)
+      print(acceptA/(iter-1)) 
+      print(acceptr/116/(iter-1))
+      print(acceptrho/(iter-1)) 
+      print(acceptv/n.atoms/(iter-1))
+    }
+    ######################
+    ###   update beta  ###
+    ###################### 
+    # update beta (intercept only model)
+    
+    M1 = solve(taue1 * t(x1) %*% x1 + 1/sigmasq_beta * diag(ncol(x1)))
+    m1 = taue1 *  t(x1) %*% (y1 - theta[u][1:n])
+    mu1 = M1 %*% m1
+    
+    M2 = solve(taue2 * t(x2) %*% x2 + 1/sigmasq_beta * diag(ncol(x2)))
+    m2 = taue2 *  t(x2) %*% (y2 - theta[u][(n+1):(2*n)])
+    mu2 = M2 %*% m2
+    
+    beta1 <- rmvnorm(1, mu1, M1)
+    beta2 <- rmvnorm(1, mu2, M2)
+    
+    beta <- c(beta1, beta2)
+    
+    
+    #########################
+    ###   update theta    ###
+    ######################### 
+    
+    u1 = u[1:n]
+    u2 = u[(n+1):(2*n)]
+    
+    for (j in 1:n.atoms){
+      M = 1/(taue1 * sum(u1 == j) + taue2 * sum(u2 == j) + taus)
+      m = taue1 * sum(y1[u1 == j] - as.vector(x1[u1 == j, ] %*% t(beta1))) + taue2 * sum(y2[u2 == j] - as.vector(x2[u2 == j, ] %*% t(beta2)))
+      theta[j] <- rnorm(1, M*m, sqrt(M))
+    }
+    
+    
+    
+    ######################
+    ###   update r     ###
+    ###################### 
+    
+    
+    tauvec = c(rep(taue1, n), rep(taue2, n))
+    
+    for (k in 1:nq){
+      pro_r=r;pro_Fr=F_r;pro_u=u
+      pro_r[k]=rnorm(1,r[k],1.8)
+      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))			
+      pro_u[k]=makeu(pro_Fr[k],probs)
+      
+      MH=dmvnorm(t(pro_r),mean=rep(0, nq),sigma=Vr,log=T)+dnorm(y[k],as.numeric(X[k,]%*%beta)+theta[pro_u[k]], sqrt(1/tauvec[k]),log=T)-
+        dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T)-dnorm(y[k],as.numeric(X[k,]%*%beta)+theta[u[k]], sqrt(1/tauvec[k]),log=T) 
+      
+      if(runif(1,0,1)<exp(MH)){
+        r[k]=pro_r[k]
+        F_r[k]=pro_Fr[k]
+        u[k]=pro_u[k]
+        acceptr=acceptr+1
+      }
+    }
+    
+    
+    ######################
+    ###   update   v   ###
+    ###################### 
+    
+    
+    
+    for (j in 1:n.atoms){
+
+      pro_v=v
+      pro_v[j]<-rnorm(1,v[j],0.45)
+      if(pro_v[j] > 0 & pro_v[j] < 1){
+        pro_probs=makeprobs(pro_v)
+        pro_u=makeu(F_r,pro_probs)
+        
+        MH=log(dbeta(pro_v[j],1,alpha))+dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[pro_u[1:n]],sigma=1/taue1*diag(n),log=T)+
+          dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[pro_u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)-
+          log(dbeta(v[j],1,alpha))-dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[u[1:n]],sigma=1/taue1*diag(n),log=T) -
+          dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)
+        
+        
+        if(runif(1,0,1)<exp(MH)){
+          v[j]=pro_v[j]
+          probs=pro_probs
+          u=pro_u
+          acceptv=acceptv+1	
+        }
+      }
+    }
+    
+    ######################
+    ###   update taued  ###
+    ###################### 
+    
+    taue1=rgamma(1,shape=n/2+c,rate=t(y1-as.vector(x1%*%t(beta1))-theta[u[1:n]])%*%(y1-as.vector(x1%*%t(beta1))-theta[u[1:n]])/2+d)
+    taue2=rgamma(1,shape=n/2+c,rate=t(y2-as.vector(x2%*%t(beta2))-theta[u[(n+1):(2*n)]])%*%(y2-as.vector(x2%*%t(beta2))-theta[u[(n+1):(2*n)]])/2+d)
+    
+    
+    ######################
+    ###   update taus  ###
+    ###################### 
+    
+    
+    taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d)
+    
+    
+    ######################
+    ###   update rho  ###
+    ###################### 
+    
+    #0.8
+    pro_eta1 = rnorm(1, eta[1], 0.8)
+    pro_eta2 = rnorm(1, eta[2], 0.8)
+    pro_eta = c(pro_eta1, pro_eta2)
+    pro_rho = exp(pro_eta)/(1+exp(pro_eta))
+    pro_Q = Dinv_new(Rho = pro_rho, n, cn, ns, udnei,q=2)
+    pro_invQ1 = solve(pro_Q[[1]])
+    pro_invQ2 = solve(pro_Q[[2]])
+
+    kprod = kronecker(A, diag(n))
+    pro_invQ = as.matrix(bdiag(pro_invQ1, pro_invQ2))
+    pro_Vr = kprod %*% pro_invQ %*% t(kprod)
+    
+    MH = dmvnorm(t(r),mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) - 
+      dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2])
+    
+    if(runif(1,0,1)<exp(MH)){
+      eta = pro_eta
+      rho = pro_rho
+      Vr = as.matrix(forceSymmetric(pro_Vr))
+      acceptrho=acceptrho+1	
+    }
+    
+    ######################
+    ###   update A  ###
+    ###################### 
+    
+    pro_A = matrix(0, q, q)
+    for(i in 1:q){
+      for(j in 1:i){
+        if(j == i){
+          pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.1))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
+        }else{
+          pro_A[i, j] = rnorm(1, A[i, j], 0.1)
+        }
+      }
+    }
+    
+    Q = Dinv_new(Rho = rho, n, cn, ns, udnei,q=2)
+    invQ1 = solve(Q[[1]])
+    invQ2 = solve(Q[[2]])
+    Sigma =  A %*% t(A)
+    #f1 = rmvnorm(1, rep(0, n), invQ1)
+    #f2 = rmvnorm(1, rep(0, n), invQ2)
+    #f = c(f1, f2)
+    pro_kprod = kronecker(pro_A, diag(n))
+    invQ = as.matrix(bdiag(invQ1, invQ2))
+    pro_Vr = pro_kprod %*% as.matrix(forceSymmetric(invQ)) %*% t(pro_kprod)
+    pro_Sigma =  pro_A %*% t(pro_A)
+    #pro_Vr = as.matrix(forceSymmetric(kronecker(pro_Sigma, solve(Q))))
+    
+    lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
+    pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
+    MH = dmvnorm(t(r),mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
+      dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T) - lpA
+    
+    if(runif(1,0,1)<exp(MH)){
+      A = pro_A
+      Vr = as.matrix(forceSymmetric(pro_Vr))
+      acceptA=acceptA+1	
+    }
+    
+    
+    ######################
+    ### record samples ###
+    ###################### 
+    
+    keeptheta[iter,] = theta
+    keepphi[iter,] = theta[u]
+    
+    
+    keepbeta[iter,]=beta
+    keeptaus[iter]=taus
+    keeprho1[iter]=rho[1]
+    keeprho2[iter]=rho[2]
+    keeptaue1[iter]=taue1
+    keeptaue2[iter]=taue2
+    keepu[iter,]=u
+    keepv[iter,]=v
+    keepr[iter,]=r
+    keepFr[iter,]=F_r
+    
+    #	cat("iteration = ", i, "acceptance rate of r = ", acceptr/(n*i),"acceptance rate of v = ",acceptv/(n.atoms*i), "\n")
+    
+  }
+  
+  list(beta=keepbeta[burn:runs,],phi=keepphi[burn:runs,],theta=keeptheta[burn:runs,],u=keepu[burn:runs,],
+       v=keepv[burn:runs,],r=keepr[burn:runs,],Fr=keepFr[burn:runs,],taue1=keeptaue1[burn:runs],
+       taue2=keeptaue2[burn:runs],taus=keeptaus[burn:runs],rho1=keeprho1[burn:runs], rho2=keeprho2[burn:runs])
+}
+
+T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
+spec1 <- matrix(0, 30, length(T_edge))
+sens1 <- matrix(0, 30, length(T_edge))
+spec2 <- matrix(0, 30, length(T_edge))
+sens2 <- matrix(0, 30, length(T_edge))
+spec12 <- matrix(0, 30, length(T_edge))
+sens12 <- matrix(0, 30, length(T_edge))
+spec21 <- matrix(0, 30, length(T_edge))
+sens21 <- matrix(0, 30, length(T_edge))
+mcmc_samples <- list()
+
+# Simulate 30 datasets
+for(seed in 1:30){
+  print(seed)
+
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  y1 = X1 %*% beta1 + (phi_true1 - mean(phi_true1))  + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = X2 %*% beta2 + (phi_true2 - mean(phi_true2))  + sqrt(sigma_esq2) * rnorm(n_county)
+
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  mcmc_samples[[seed]]=ARDP_joint_diff(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q = 2,
+                                       n.atoms=15, runs=25000, burn=15000)
+  
+  phis <-  mcmc_samples[[seed]]$phi
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  
+  # estimate difference boundaries
+  vij_samples1 <- t(apply(phis1, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  
+  vij_samples2 <- t(apply(phis2, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples12 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]+58]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples21 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]+58] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  pvij1 <- apply(vij_samples1, 2, mean)
+  pvij2 <- apply(vij_samples2, 2, mean)
+  pvij12 <- apply(vij_samples12, 2, mean)
+  pvij21 <- apply(vij_samples21, 2, mean)
+  pvijm <- rbind(pvij1, pvij2, pvij12, pvij21)
+  
+  threshold1 = sort(pvij1, decreasing = TRUE)[T_edge]
+  threshold2 = sort(pvij2, decreasing = TRUE)[T_edge]
+  threshold12 = sort(pvij12, decreasing = TRUE)[T_edge]
+  threshold21 = sort(pvij21, decreasing = TRUE)[T_edge]
+  thresholdm <- rbind(threshold1, threshold2, threshold12, threshold21)
+  
+  # calculate sensitivity and specificity
+  for(i in 1:length(T_edge)){
+    est_diff1 <- factor(as.numeric(pvijm[1,] >= threshold1[i]), levels = c(0,1))
+    conf_matrix1 <-table(est_diff1,true_diff1)
+    spec1[seed,i] <- sensitivity(conf_matrix1)
+    sens1[seed,i] <- specificity(conf_matrix1)
+    
+    est_diff2 <- factor(as.numeric(pvijm[2,] >= threshold2[i]), levels = c(0,1))
+    conf_matrix2 <-table(est_diff2,true_diff2)
+    spec2[seed,i] <- sensitivity(conf_matrix2)
+    sens2[seed,i] <- specificity(conf_matrix2)
+    
+    est_diff12 <- factor(as.numeric(pvijm[3,] >= threshold12[i]), levels = c(0,1))
+    conf_matrix12 <-table(est_diff12,true_diff3)
+    spec12[seed,i] <- sensitivity(conf_matrix12)
+    sens12[seed,i] <- specificity(conf_matrix12)
+    
+    est_diff21 <- factor(as.numeric(pvijm[4,] >= threshold21[i]), levels = c(0,1))
+    conf_matrix21<-table(est_diff21,true_diff4)
+    spec21[seed,i] <- sensitivity(conf_matrix21)
+    sens21[seed,i] <- specificity(conf_matrix21)
+  }
+  
+  save.image("simBARDP_dagarc25.RData")
+}
+```
+
+#### 4.2 MCAR
+
+```{r}
+### Functions for MCMC updates
+# compute u weights from F_r and prob 
+
+makeprobs<-function(v){
+  m<-length(v) 
+  p <-matrix(0,m,m)
+  for(j in 2:m){
+    p[1:(j-1),j]<-1
+  }
+  probs<-exp(log(v)+log(1-v)%*%p)
+  probs[m]<-1-sum(probs[1:(m-1)])
+  probs
+}
+
+# Compute presicion matrices of DAGAR 
+makeu<- function(F_r,probs){
+  
+  m1=length(F_r)
+  m2=length(probs)
+  u=rep(0,m1)
+  for (k in 1:m1){
+    for (l in 1:m2){
+      if (sum(probs[1:(l-1)])<F_r[k] && F_r[k]<sum(probs[1:l])){
+        u[k]=l
+      }
+      if (u[k]==0){
+        u[k]=1
+      }
+    }
+  }
+  return(u)
+}
+# Jacobian matrix for updating A
+Jacob_A <- function(A){
+  prod = 1
+  for(i in 1:nrow(A)){
+    prod = prod*A[i,i]^(nrow(A)-i+1)
+  }
+  return(2^nrow(A)*prod)
+}
+
+### MCAR model
+# Metropolis within Gibbs Sampler for MCMC updating 
+ARDP_joint_diff_car<-function(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q = 2, n.atoms=15, runs=10000, burn=1000){
+  #y:       data
+  #x:       covariates
+  #n.atoms: number of atoms in the mixture dist.
+  #theta:      the theta's (iid from baseline) in the model
+  #alpha:     v~beta(1,alpha)
+  #u:       the index indicator of spatial random effect 
+  #rho:     sptatial autocorrelation parameter in DAGAR
+  #Minc:       0-1 adjacency matrix 
+  #V_r:     covariance matrix of joint MDAGAR
+  #Q:       presicion matrix of DAGAR
+  #r:       random effects following DAGAR
+  #F_r:     Marginal CDF of r
+  #taued:   presicion in Baseline of DP for disease d   
+  #taus:    precision for theta
+  
+  
+  
+  
+  nq<-length(y)
+  n <- nq / q
+  p<-ncol(X)
+  y1 <- y[1:n]
+  y2 <- y[(n+1):(2*n)]
+  
+  sigmasq_beta = 10000
+  keepbeta=matrix(0,runs,p)
+  keepphi=matrix(0,runs,nq)
+  keeptheta=matrix(0,runs,n.atoms)
+  keepu=matrix(0,runs,nq)
+  keeprho1=keeprho2=keeptaue1=keeptaue2 = keeptaus = rep(0,runs)
+  keepv=matrix(0,runs,n.atoms)
+  keepr=matrix(0,runs,nq)
+  keepFr=matrix(0,runs,nq)
+  
+  
+  #initial values
+  
+  theta=rep(0,n.atoms)
+  beta<-rep(0,p)
+  taue1=1
+  taue2=1
+  taus = 1
+  
+  c=2
+  d=0.1
+  
+  v<-rep(.9,n.atoms)
+  probs=makeprobs(v)
+  
+  #A matrix
+  rho=c(0.9, 0.9)
+  eta = log(rho/(1-rho))
+  A = matrix(0, q, q)
+  for(i in 1:q){
+    for(j in 1:i){
+      if(j == i){
+        A[i, j] = exp(rnorm(1))
+      }else{
+        A[i, j] = rnorm(1)
+      }
+    }
+  }
+
+  invQ1 = solve(D - rho[1] * Minc)
+  invQ2 = solve(D - rho[2] * Minc)
+  f1 = rmvnorm(1, rep(0, n), invQ1)
+  f2 = rmvnorm(1, rep(0, n), invQ2)
+  f = c(f1, f2)
+  kprod = kronecker(A, diag(n))
+  invQ = as.matrix(bdiag(invQ1, invQ2))
+  r = kprod %*% f
+  
+  Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
+  
+  F_r=pnorm(r,0,sqrt(diag(Vr)))
+  u=makeu(F_r,probs)
+  phi <- theta[u]
+  
+  nu = 2
+  R = 0.1 * diag(q)
+  
+  
+  acceptr=acceptv=acceptrho=acceptA=0
+  
+
+  count<-afterburn<-0
+  burn = burn + 1
+
+  for(iter in 1:runs){
+    
+    if(iter %% 100 == 0){
+      print(iter)
+      print(acceptA/(iter-1)) 
+      print(acceptr/116/(iter-1))
+      print(acceptrho/(iter-1)) 
+      print(acceptv/n.atoms/(iter-1))
+    }
+    ######################
+    ###   update beta  ###
+    ###################### 
+    # update beta (intercept only model)
+    
+    M1 = solve(taue1 * t(x1) %*% x1 + 1/sigmasq_beta * diag(ncol(x1)))
+    m1 = taue1 *  t(x1) %*% (y1 - theta[u][1:n])
+    mu1 = M1 %*% m1
+    
+    M2 = solve(taue2 * t(x2) %*% x2 + 1/sigmasq_beta * diag(ncol(x2)))
+    m2 = taue2 *  t(x2) %*% (y2 - theta[u][(n+1):(2*n)])
+    mu2 = M2 %*% m2
+    
+    beta1 <- rmvnorm(1, mu1, M1)
+    beta2 <- rmvnorm(1, mu2, M2)
+    
+    beta <- c(beta1, beta2)
+    
+    
+    #########################
+    ###   update theta    ###
+    ######################### 
+    
+    u1 = u[1:n]
+    u2 = u[(n+1):(2*n)]
+    
+    for (j in 1:n.atoms){
+      M = 1/(taue1 * sum(u1 == j) + taue2 * sum(u2 == j) + taus)
+      m = taue1 * sum(y1[u1 == j] - as.vector(x1[u1 == j, ] %*% t(beta1))) + taue2 * sum(y2[u2 == j] - as.vector(x2[u2 == j, ] %*% t(beta2)))
+      theta[j] <- rnorm(1, M*m, sqrt(M))
+    }
+    
+    
+    
+    ######################
+    ###   update r     ###
+    ###################### 
+    
+    tauvec = c(rep(taue1, n), rep(taue2, n))
+    
+    for (k in 1:nq){
+      pro_r=r;pro_Fr=F_r;pro_u=u
+      pro_r[k]=rnorm(1,r[k],1.5)
+      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))			
+      pro_u[k]=makeu(pro_Fr[k],probs)
+      
+      MH=dmvnorm(t(pro_r),mean=rep(0, nq),sigma=Vr,log=T)+dnorm(y[k],as.numeric(X[k,]%*%beta)+theta[pro_u[k]], sqrt(1/tauvec[k]),log=T)-
+        dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T)-dnorm(y[k],as.numeric(X[k,]%*%beta)+theta[u[k]], sqrt(1/tauvec[k]),log=T) 
+      
+      if(runif(1,0,1)<exp(MH)){
+        r[k]=pro_r[k]
+        F_r[k]=pro_Fr[k]
+        u[k]=pro_u[k]
+        acceptr=acceptr+1
+      }
+    }
+    
+    
+    ######################
+    ###   update   v   ###
+    ###################### 
+    
+    
+    
+    for (j in 1:n.atoms){
+      pro_v=v
+      pro_v[j]<-rnorm(1,v[j],0.5)
+      #while (pro_v[j]<0 || pro_v[j]>1) {pro_v[j]<-rnorm(1,v[j],0.04)}
+      if(pro_v[j] > 0 & pro_v[j] < 1){
+        pro_probs=makeprobs(pro_v)
+        pro_u=makeu(F_r,pro_probs)
+        
+        MH=log(dbeta(pro_v[j],1,alpha))+dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[pro_u[1:n]],sigma=1/taue1*diag(n),log=T)+
+          dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[pro_u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)-
+          log(dbeta(v[j],1,alpha))-dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[u[1:n]],sigma=1/taue1*diag(n),log=T) -
+          dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)
+        
+        
+        if(runif(1,0,1)<exp(MH)){
+          v[j]=pro_v[j]
+          probs=pro_probs
+          u=pro_u
+          acceptv=acceptv+1	
+        }
+      }
+    }
+    
+    ######################
+    ###   update taued  ###
+    ###################### 
+    
+    taue1=rgamma(1,shape=n/2+c,rate=t(y1-as.vector(x1%*%t(beta1))-theta[u[1:n]])%*%(y1-as.vector(x1%*%t(beta1))-theta[u[1:n]])/2+d)
+    taue2=rgamma(1,shape=n/2+c,rate=t(y2-as.vector(x2%*%t(beta2))-theta[u[(n+1):(2*n)]])%*%(y2-as.vector(x2%*%t(beta2))-theta[u[(n+1):(2*n)]])/2+d)
+    
+    
+    ######################
+    ###   update taus  ###
+    ###################### 
+    
+    
+    taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d)
+    
+    
+    ######################
+    ###   update rho  ###
+    ###################### 
+    
+    
+    pro_eta1 = rnorm(1, eta[1], 2)
+    pro_eta2 = rnorm(1, eta[2], 2)
+    pro_eta = c(pro_eta1, pro_eta2)
+    pro_rho = exp(pro_eta)/(1+exp(pro_eta))
+    pro_invQ1 = solve(D - pro_rho[1] * Minc)
+    pro_invQ2 = solve(D - pro_rho[2] * Minc)
+
+    kprod = kronecker(A, diag(n))
+    pro_invQ = as.matrix(bdiag(pro_invQ1, pro_invQ2))
+    pro_Vr = kprod %*% pro_invQ %*% t(kprod)
+
+    MH = dmvnorm(t(r),mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) - 
+      dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2])
+    
+    if(runif(1,0,1)<exp(MH)){
+      eta = pro_eta
+      rho = pro_rho
+      Vr = as.matrix(forceSymmetric(pro_Vr))
+      acceptrho=acceptrho+1	
+    }
+    
+    ######################
+    ###   update A  ###
+    ###################### 
+    
+    pro_A = matrix(0, q, q)
+    for(i in 1:q){
+      for(j in 1:i){
+        if(j == i){
+          pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.1))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
+        }else{
+          pro_A[i, j] = rnorm(1, A[i, j], 0.1)
+        }
+      }
+    }
+    
+    invQ1 = solve(D - rho[1] * Minc)
+    invQ2 = solve(D - rho[2] * Minc)
+    Sigma =  A %*% t(A)
+
+    pro_kprod = kronecker(pro_A, diag(n))
+    invQ = as.matrix(bdiag(invQ1, invQ2))
+    pro_Vr = pro_kprod %*% as.matrix(forceSymmetric(invQ)) %*% t(pro_kprod)
+    pro_Sigma =  pro_A %*% t(pro_A)
+    
+    lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
+    pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
+    MH = dmvnorm(t(r),mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
+      dmvnorm(t(r),mean=rep(0, nq),sigma=Vr,log=T) - lpA
+    
+    if(runif(1,0,1)<exp(MH)){
+      A = pro_A
+      Vr = as.matrix(forceSymmetric(pro_Vr))
+      acceptA=acceptA+1	
+    }
+    
+    ######################
+    ### record samples ###
+    ###################### 
+    
+    keeptheta[iter,] = theta
+    keepphi[iter,] = theta[u]
+    
+    keepbeta[iter,]=beta
+    keeptaus[iter]=taus
+    keeprho1[iter]=rho[1]
+    keeprho2[iter]=rho[2]
+    keeptaue1[iter]=taue1
+    keeptaue2[iter]=taue2
+    keepu[iter,]=u
+    keepv[iter,]=v
+    keepr[iter,]=r
+    keepFr[iter,]=F_r
+    
+    #	cat("iteration = ", i, "acceptance rate of r = ", acceptr/(n*i),"acceptance rate of v = ",acceptv/(n.atoms*i), "\n")
+    
+  }
+  
+  list(beta=keepbeta[burn:runs,],phi=keepphi[burn:runs,],theta=keeptheta[burn:runs,],u=keepu[burn:runs,],
+       v=keepv[burn:runs,],r=keepr[burn:runs,],Fr=keepFr[burn:runs,],taue1=keeptaue1[burn:runs],
+       taue2=keeptaue2[burn:runs],taus=keeptaus[burn:runs],rho1=keeprho1[burn:runs], rho2=keeprho2[burn:runs])
+}
+
+T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
+spec1 <- matrix(0, 30, length(T_edge))
+sens1 <- matrix(0, 30, length(T_edge))
+spec2 <- matrix(0, 30, length(T_edge))
+sens2 <- matrix(0, 30, length(T_edge))
+spec12 <- matrix(0, 30, length(T_edge))
+sens12 <- matrix(0, 30, length(T_edge))
+spec21 <- matrix(0, 30, length(T_edge))
+sens21 <- matrix(0, 30, length(T_edge))
+mcmc_samples <- list()
+
+# Simulate 30 datasets
+for(seed in 1:30){
+  print(seed)
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  y1 = X1 %*% beta1 + (phi_true1 - mean(phi_true1))  + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = X2 %*% beta2 + (phi_true2 - mean(phi_true2))  + sqrt(sigma_esq2) * rnorm(n_county)
+  
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  mcmc_samples[[seed]]=ARDP_joint_diff_car(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q = 2,
+                                           n.atoms=15, runs=25000, burn=15000)
+  phis <-  mcmc_samples[[seed]]$phi
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  
+  # estimate difference boundaries
+  vij_samples1 <- t(apply(phis1, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  
+  vij_samples2 <- t(apply(phis2, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples12 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]+58]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples21 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]+58] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  pvij1 <- apply(vij_samples1, 2, mean)
+  pvij2 <- apply(vij_samples2, 2, mean)
+  pvij12 <- apply(vij_samples12, 2, mean)
+  pvij21 <- apply(vij_samples21, 2, mean)
+  pvijm <- rbind(pvij1, pvij2, pvij12, pvij21)
+  
+  threshold1 = sort(pvij1, decreasing = TRUE)[T_edge]
+  threshold2 = sort(pvij2, decreasing = TRUE)[T_edge]
+  threshold12 = sort(pvij12, decreasing = TRUE)[T_edge]
+  threshold21 = sort(pvij21, decreasing = TRUE)[T_edge]
+  thresholdm <- rbind(threshold1, threshold2, threshold12, threshold21)
+  
+  # calculate sensitivity and specificity
+  for(i in 1:length(T_edge)){
+    est_diff1 <- factor(as.numeric(pvijm[1,] >= threshold1[i]), levels = c(0,1))
+    conf_matrix1 <-table(est_diff1,true_diff1)
+    spec1[seed,i] <- sensitivity(conf_matrix1)
+    sens1[seed,i] <- specificity(conf_matrix1)
+    
+    est_diff2 <- factor(as.numeric(pvijm[2,] >= threshold2[i]), levels = c(0,1))
+    conf_matrix2 <-table(est_diff2,true_diff2)
+    spec2[seed,i] <- sensitivity(conf_matrix2)
+    sens2[seed,i] <- specificity(conf_matrix2)
+    
+    est_diff12 <- factor(as.numeric(pvijm[3,] >= threshold12[i]), levels = c(0,1))
+    conf_matrix12 <-table(est_diff12,true_diff3)
+    spec12[seed,i] <- sensitivity(conf_matrix12)
+    sens12[seed,i] <- specificity(conf_matrix12)
+    
+    est_diff21 <- factor(as.numeric(pvijm[4,] >= threshold21[i]), levels = c(0,1))
+    conf_matrix21<-table(est_diff21,true_diff4)
+    spec21[seed,i] <- sensitivity(conf_matrix21)
+    sens21[seed,i] <- specificity(conf_matrix21)
+  }
+  
+  save.image("simBARDP_carc25_1.RData")
+}
+```
+
+#### 4.3 DAGAR$_{ind}$
+```
+sink("MDAGAR_ARDP_ind.txt")
+cat("
+    model
+    {
+    
+    for (i in 1:k)
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue1)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ1[i,i])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    for (i in (k+1):(2*k))
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue2)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ2[i-k,i-k])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    
+    pi[1] <- V[1]
+    prod[1] <- 1 - pi[1]
+    for (h in 2:H){
+    prod[h] <- prod[h-1] * (1-V[h])
+    pi[h] <- V[h] * prod[h-1]
+    }
+    
+    for (h in 1:H){
+    theta[h] ~ dnorm(0,taus)
+    V[h] ~ dbeta(1,alpha)
+    sum_pi[h] <- sum(pi[1:h])
+    }
+    
+    for(i in 1:2){
+    Tau1[i, i] <- 1
+    Tau2[i, i] <- 1
+    
+    for(j in 1:k){
+    B1[i,j] <- 0
+    B2[i,j] <- 0
+    }
+    }
+    for(l in 1:(k-1)){
+    for(m in (l+1):k){
+    Tau1[l,m] <- 0
+    Tau2[l,m] <- 0
+    }
+    }
+    Tau1[2,1] <- 0
+    Tau2[2,1] <- 0
+    for (i in 3:k)
+    {
+    Tau1[i,i] <- (1 + (ns[i-1] - 1) * rho1^2) / (1 - rho1^2)
+    Tau2[i,i] <- (1 + (ns[i-1] - 1) * rho2^2) / (1 - rho2^2)
+    
+    for(m in 1:(i-1)){
+    Tau1[i,m] <- 0
+    Tau2[i,m] <- 0
+    }
+    b1[i] <- rho1 / (1 + (ns[i-1] - 1) * rho1^2)
+    b2[i] <- rho2 / (1 + (ns[i-1] - 1) * rho2^2)
+    
+    for(j in (udnei[(cn[i-1] + 1):(cn[i-1] + ns[i-1])])){
+    B1[i,j] <- b1[i]
+    B2[i,j] <- b2[i]
+    }
+    
+    for(j in index1[((k)*(i-3)-cn[i-1]+1) : ((k)*(i-3)-cn[i-1] + (k - ns[i-1]))]){
+    B1[i,j] <- 0
+    B2[i,j] <- 0
+    }
+    }
+    
+    Q1 <- tau1 * t(Ik - B1) %*% Tau1 %*% (Ik - B1)
+    Q2 <- tau2 * t(Ik - B2) %*% Tau2 %*% (Ik - B2)
+    r1[1:k] ~ dmnorm(rep(0, k), Q1)
+    r2[1:k] ~ dmnorm(rep(0, k), Q2)
+    r[1:k] <- r1[1:k]
+    r[(k+1):(2*k)] <- r2[1:k]
+    
+    invQ1 <- inverse(Q1)
+    invQ2 <- inverse(Q2)
+    
+    rho1 ~ dunif(0, 0.98)
+    rho2 ~ dunif(0, 0.98)
+    tau1 ~ dgamma(2, 0.1)
+    tau2 ~ dgamma(2, 0.1)
+    taue1 ~ dgamma(2, 0.1)
+    taue2 ~ dgamma(2, 0.1)
+    vare1 <- 1/taue1
+    vare2 <- 1/taue2
+    taus ~ dgamma(2,1)
+    beta[1:ncolumn] ~ dmnorm(rep(0,ncolumn), (0.0001*I));
+    }
+    ", fill = TRUE)
+sink()
+```
+```{r}
+T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
+spec1 <- matrix(0, 30, length(T_edge))
+sens1 <- matrix(0, 30, length(T_edge))
+spec2 <- matrix(0, 30, length(T_edge))
+sens2 <- matrix(0, 30, length(T_edge))
+spec12 <- matrix(0, 30, length(T_edge))
+sens12 <- matrix(0, 30, length(T_edge))
+spec21 <- matrix(0, 30, length(T_edge))
+sens21 <- matrix(0, 30, length(T_edge))
+mcmc_samples <- list()
+
+# Simulate 30 datasets
+for(seed in 1:30){
+  print(seed)
+  #seed=1
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  y1 = X1 %*% beta1 + (phi_true1 - mean(phi_true1))  + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = X2 %*% beta2 + (phi_true2 - mean(phi_true2))  + sqrt(sigma_esq2) * rnorm(n_county)
+
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  model.data1 <- list(k = n_county,  I = diag(ncol(Xb1)), X = Xb1, Y = Y1, Ik = diag(n_county), index1 = index1,
+                      alpha = 1, ncolumn = ncol(Xb1),  H = 15,  ns = dni, udnei = udnei, cn = c(0, cni))
+  model.inits <- rep(list(list(rho1 = 0.1, rho2 = 0.1, tau1 = 1, tau2 = 1, taue1 = 1, taue2 = 1, 
+                               taus = 1, beta = rep(0, ncol(Xb1)))),2)
+  model.param <- c("beta", "rho1", "rho2", "tau1", "tau2", "vare1", "vare2", 
+                   "taus", "phi", "u")
+  
+  run.DAGAR1 <- jags(model.data1, model.inits, model.param, "MDAGAR_ARDP_ind.txt",
+                     n.chains = 2, n.iter = 25000,n.burnin = 20000, n.thin = 1)
+  mcmc_samples[[seed]] <- run.DAGAR1$BUGSoutput$sims.matrix
+  
+  phis <-  mcmc_samples[[seed]][,6:121]
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  table(apply(phis2, 1, function(x) length(unique(x))))
+  table(apply(phis1, 1, function(x) length(unique(x))))
+  
+  # estimate difference boundaries
+  vij_samples1 <- t(apply(phis1, 1, function(x){
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  
+  vij_samples2 <- t(apply(phis2, 1, function(x){
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples12 <- t(apply(phis_origin, 1, function(x){
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]+58]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples21 <- t(apply(phis_origin, 1, function(x){
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]+58] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  pvij1 <- apply(vij_samples1, 2, mean)
+  pvij2 <- apply(vij_samples2, 2, mean)
+  pvij12 <- apply(vij_samples12, 2, mean)
+  pvij21 <- apply(vij_samples21, 2, mean)
+  pvijm <- rbind(pvij1, pvij2, pvij12, pvij21)
+  
+  threshold1 = sort(pvij1, decreasing = TRUE)[T_edge]
+  threshold2 = sort(pvij2, decreasing = TRUE)[T_edge]
+  threshold12 = sort(pvij12, decreasing = TRUE)[T_edge]
+  
+  # calculate sensitivity and specificity
+  for(i in 1:length(T_edge)){
+    est_diff1 <- factor(as.numeric(pvijm[1,] >= threshold1[i]), levels = c(0, 1))
+    conf_matrix1 <-table(est_diff1,true_diff1)
+    spec1[seed,i] <- sensitivity(conf_matrix1)
+    sens1[seed,i] <- specificity(conf_matrix1)
+    
+    est_diff2 <- factor(as.numeric(pvijm[2,] >= threshold2[i]), levels = c(0, 1))
+    conf_matrix2 <-table(est_diff2,true_diff2)
+    spec2[seed,i] <- sensitivity(conf_matrix2)
+    sens2[seed,i] <- specificity(conf_matrix2)
+    
+    est_diff12 <- factor(as.numeric(pvijm[3,] >= threshold12[i]), levels = c(0, 1))
+    conf_matrix12 <-table(est_diff12,true_diff3)
+    spec12[seed,i] <- sensitivity(conf_matrix12)
+    sens12[seed,i] <- specificity(conf_matrix12)
+    
+    est_diff21 <- factor(as.numeric(pvijm[4,] >= threshold21[i]), levels = c(0, 1))
+    conf_matrix21<-table(est_diff21,true_diff4)
+    spec21[seed,i] <- sensitivity(conf_matrix21)
+    sens21[seed,i] <- specificity(conf_matrix21)
+  }
+  
+  save.image("simBARDP_dagar_indc25_v1.RData")
+}
+```
+
+#### 4.4 CAR$_{ind}$
+```
+sink("MCAR_ARDP_ind.txt")
+cat("
+    model
+    {
+    
+    for (i in 1:k)
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue1)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ1[i,i])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    for (i in (k+1):(2*k))
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue2)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ2[i-k,i-k])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    pi[1] <- V[1]
+    prod[1] <- 1 - pi[1]
+    for (h in 2:H){
+    prod[h] <- prod[h-1] * (1-V[h])
+    pi[h] <- V[h] * prod[h-1]
+    }
+    
+    for (h in 1:H){
+    theta[h] ~ dnorm(0,taus)
+    V[h] ~ dbeta(1,alpha)
+    sum_pi[h] <- sum(pi[1:h])
+    }
+    
+    Q1 <- tau1 * (D - rho1 * Minc)
+    Q2 <- tau2 * (D - rho2 * Minc)
+    r1[1:k] ~ dmnorm(rep(0, k), Q1)
+    r2[1:k] ~ dmnorm(rep(0, k), Q2)
+    r[1:k] <- r1[1:k]
+    r[(k+1):(2*k)] <- r2[1:k]
+    
+    invQ1 <- inverse(Q1)
+    invQ2 <- inverse(Q2)
+    
+    rho1 ~ dunif(0, 0.98)
+    rho2 ~ dunif(0, 0.98)
+    tau1 ~ dgamma(2, 0.1)
+    tau2 ~ dgamma(2, 0.1)
+    taue1 ~ dgamma(2, 0.1)
+    taue2 ~ dgamma(2, 0.1)
+    vare1 <- 1/taue1
+    vare2 <- 1/taue2
+    taus ~ dgamma(2,0.1)
+    beta[1:ncolumn] ~ dmnorm(rep(0,ncolumn), (0.0001*I));
+    }
+    ", fill = TRUE)
+sink()
+```
+```{r}
+T_edge = c(60, 65, 70, 75, 80, 85, 90, 95)
+spec1 <- matrix(0, 30, length(T_edge))
+sens1 <- matrix(0, 30, length(T_edge))
+spec2 <- matrix(0, 30, length(T_edge))
+sens2 <- matrix(0, 30, length(T_edge))
+spec12 <- matrix(0, 30, length(T_edge))
+sens12 <- matrix(0, 30, length(T_edge))
+spec21 <- matrix(0, 30, length(T_edge))
+sens21 <- matrix(0, 30, length(T_edge))
+mcmc_samples <- list()
+
+# Generate 30 datasets
+for(seed in 1:30){
+  print(seed)
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  y1 = X1 %*% beta1 + (phi_true1 - mean(phi_true1))  + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = X2 %*% beta2 + (phi_true2 - mean(phi_true2))  + sqrt(sigma_esq2) * rnorm(n_county)
+  #y = X %*% beta + phi_true  + sqrt(sigma_e2) * rnorm(n_county)
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  model.data1 <- list(k = n_county,  I = diag(ncol(Xb1)), X = Xb1, Y = Y1,
+                      alpha = 1, ncolumn = ncol(Xb1),  H = 15, D = D, Minc = Minc)
+  model.inits <- rep(list(list(rho1 = 0.1, rho2 = 0.1, tau1 = 1, tau2 = 1, taue1 = 1, taue2 = 1, 
+                               taus = 1, beta = rep(0, ncol(Xb1)))),2)
+  model.param <- c("beta", "rho1", "rho2", "tau1", "tau2", "vare1", "vare2", 
+                   "taus", "phi", "u")
+  
+  run.CAR1 <- jags(model.data1, model.inits, model.param, "MCAR_ARDP_ind.txt",
+                   n.chains = 2, n.iter = 25000,n.burnin = 20000, n.thin = 1)
+  mcmc_samples[[seed]] <- run.CAR1$BUGSoutput$sims.matrix
+  
+  phis <-  mcmc_samples[[seed]][,6:121]
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  table(apply(phis2, 1, function(x) length(unique(x))))
+  table(apply(phis1, 1, function(x) length(unique(x))))
+  
+  # estimate difference boundaries
+  vij_samples1 <- t(apply(phis1, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  
+  vij_samples2 <- t(apply(phis2, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples12 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]+58]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  vij_samples21 <- t(apply(phis_origin, 1, function(x){
+    #x <- phis[1,]
+    diff_b1 <- NULL
+    for(i in 1:nrow(neighbor_list0)){
+      if(x[neighbor_list0[i,1]+58] != x[neighbor_list0[i,2]]){
+        diff_b1 <- c(diff_b1, 1)
+      }else{
+        diff_b1 <- c(diff_b1, 0)
+      }
+    }
+    return(diff_b1)
+  }))
+  
+  
+  pvij1 <- apply(vij_samples1, 2, mean)
+  pvij2 <- apply(vij_samples2, 2, mean)
+  pvij12 <- apply(vij_samples12, 2, mean)
+  pvij21 <- apply(vij_samples21, 2, mean)
+  pvijm <- rbind(pvij1, pvij2, pvij12, pvij21)
+  
+  threshold1 = sort(pvij1, decreasing = TRUE)[T_edge]
+  threshold2 = sort(pvij2, decreasing = TRUE)[T_edge]
+  threshold12 = sort(pvij12, decreasing = TRUE)[T_edge]
+  threshold21 = sort(pvij21, decreasing = TRUE)[T_edge]
+  
+  # calculate sensitivity and specificity
+  for(i in 1:length(T_edge)){
+    est_diff1 <- factor(as.numeric(pvijm[1,] >= threshold1[i]), levels = c(0, 1))
+    conf_matrix1 <-table(est_diff1,true_diff1)
+    spec1[seed,i] <- sensitivity(conf_matrix1)
+    sens1[seed,i] <- specificity(conf_matrix1)
+    
+    est_diff2 <- factor(as.numeric(pvijm[2,] >= threshold2[i]), levels = c(0, 1))
+    conf_matrix2 <-table(est_diff2,true_diff2)
+    spec2[seed,i] <- sensitivity(conf_matrix2)
+    sens2[seed,i] <- specificity(conf_matrix2)
+    
+    est_diff12 <- factor(as.numeric(pvijm[3,] >= threshold12[i]), levels = c(0, 1))
+    conf_matrix12 <-table(est_diff12,true_diff3)
+    spec12[seed,i] <- sensitivity(conf_matrix12)
+    sens12[seed,i] <- specificity(conf_matrix12)
+    
+    est_diff21 <- factor(as.numeric(pvijm[4,] >= threshold21[i]), levels = c(0, 1))
+    conf_matrix21<-table(est_diff21,true_diff4)
+    spec21[seed,i] <- sensitivity(conf_matrix21)
+    sens21[seed,i] <- specificity(conf_matrix21)
+  }
+  
+  save.image("simBARDP_car_indc25.RData")
+}
+```
+
+### 5. Assessment for simulation result: sensitivity and specificity in Table 1 and Table 2; WAIC, D score and KL divergence
+```{r}
+###### MDAGAR #####
+load("simBARDP_dagarc25.RData")
+
+# "disease difference" in the same region
+disease_diff <- as.numeric(phi_true1 != phi_true2)
+sum(disease_diff)
+
+# estimate for "disease difference" in Table 2
+T_edged = c(15, 20, 22, 25, 30)
+specd <- matrix(0, 30, length(T_edged))
+sensd <- matrix(0, 30, length(T_edged))
+for(seed in 1:30){
+  print(seed)
+
+  phis <-  mcmc_samples[[seed]]$phi
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  
+  disease_samples <- t(apply(phis_origin, 1, function(x){
+    #x <- phis_origin[1,]
+    diff_d <- NULL
+    for(i in 1:ncol(phis1)){
+      if(x[i] != x[i+ncol(phis1)]){
+        diff_d <- c(diff_d, 1)
+      }else{
+        diff_d <- c(diff_d, 0)
+      }
+    }
+    return(diff_d)
+  }))
+  
+  pd <- apply(disease_samples, 2, mean)
+  threshold_d = sort(pd, decreasing = TRUE)[T_edged]
+  
+  for(i in 1:length(T_edged)){
+    est_diffd <- factor(as.numeric(pd >= threshold_d[i]), levels = c(0,1))
+    conf_matrixd <-table(est_diffd, disease_diff)
+    specd[seed,i] <- sensitivity(conf_matrixd)
+    sensd[seed,i] <- specificity(conf_matrixd)
+  }
+}
+
+table_d <- cbind(T_edged, colMeans(specd), colMeans(sensd))
+
+# specificity and specificity for difference boundaries in Table 1
+spec1_mean_dagar = colMeans(spec1)
+sens1_mean_dagar = colMeans(sens1)
+
+spec2_mean_dagar = colMeans(spec2)
+sens2_mean_dagar = colMeans(sens2)
+
+spec12_mean_dagar = colMeans(spec12)
+sens12_mean_dagar = colMeans(sens12)
+
+spec21_mean_dagar = colMeans(spec21)
+sens21_mean_dagar = colMeans(sens21)
+
+table = cbind(T_edge, spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens2_mean_dagar,
+              spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
+
+# model fitting
+WAIC <- rep(0,30)
+D_dagar <- rep(0,30)
+KL <- matrix(0, nrow = 30, ncol = 10000)
+for(seed in 1:30){
+  print(seed)
+
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  m1 <- X1 %*% beta1 + (phi_true1 - mean(phi_true1))
+  m2 <- X2 %*% beta2 + (phi_true2 - mean(phi_true2))
+  y1 = m1 + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = m2 + sqrt(sigma_esq2) * rnorm(n_county)
+
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  Y2 = c(yo2, yo1)
+  Xb2 = as.matrix(bdiag(Xo2, Xo1))
+  sample.mcmc1 <- mcmc_samples[[seed]]
+  sample.mcmc <- cbind(sample.mcmc1$beta, sample.mcmc1$phi, sample.mcmc1$taue1, sample.mcmc1$taue2)
+  
+  #WAIC
+  PL_single <- matrix(0, nrow = 2*n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    for(j in 1:n){
+      v1 <- sigmasq1
+      PL_single[j,i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v1) - 1/(2*v1)*(yo1[j]-Xo1[j,]%*%as.vector(beta1) - W1_mcmc[j])^2)
+      v2 <- sigmasq2
+      PL_single[(j+n),i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v2) - 1/(2*v2)*(yo2[j]-Xo2[j,]%*%as.vector(beta2) - W2_mcmc[j])^2)
+    }
+  }
+  WAIC[seed] <- WAIC(PL_single)$WAIC
+  
+  #D
+  Y_rep1 <- matrix(0, nrow = n, ncol = 10000)
+  Y_rep2 <- matrix(0, nrow = n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    set.seed(seed)
+    z1 <- rnorm(n, 0, 1)
+    z2 <- rnorm(n, 0, 1)
+    Y_rep1[,i] <- Xo1 %*% as.vector(beta1) +  W1_mcmc + sqrt(as.numeric(sigmasq1)) * z1
+    Y_rep2[,i] <- Xo2 %*% as.vector(beta2) +  W2_mcmc + sqrt(as.numeric(sigmasq2)) * z2
+    
+  }
+  mu_rep1 = rowMeans(Y_rep1)
+  mu_rep2 = rowMeans(Y_rep2)
+  
+  var_rep1 = rowVars(Y_rep1)
+  var_rep2 = rowVars(Y_rep2)
+  
+  G.latent1 = sum((yo1 - mu_rep1)^2)
+  P.latent1 = sum(var_rep1)
+  D.latent1 = G.latent1 + P.latent1
+  
+  G.latent2 = sum((yo2 - mu_rep2)^2)
+  P.latent2 = sum(var_rep2)
+  D.latent2 = G.latent2 + P.latent2
+  
+  D_dagar[seed] = D.latent1 + D.latent2
+ 
+  #KL
+  KLi = NULL
+  V = as.matrix(bdiag(sigma_esq1*diag(n), sigma_esq2*diag(n)))
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    m_est1 <- Xo1 %*% as.vector(beta1) +  W1_mcmc 
+    m_est2 <- Xo2 %*% as.vector(beta2) +  W2_mcmc 
+    V_est = as.matrix(bdiag(sigmasq1*diag(n), sigmasq2*diag(n)))
+    KLi[i] = kl.norm(mu1 = c(m1[final_perm], m2[final_perm]), S1= V, mu2 = c(m_est1, m_est2), S2= V_est)
+  }
+  
+  KL[seed,] = KLi
+}
+
+saveRDS(WAIC,"WAIC_ARDP_Jdagarc25.rds")
+saveRDS(D_dagar,"D_ARDP_Jdagarc25.rds")
+saveRDS(KL,"KL_ARDP_Jdagarc25.rds")
+
+###### MCAR #####
+load("simBARDP_carc25_1.RData")
+
+# "disease difference" in the same region
+disease_diff <- as.numeric(phi_true1 != phi_true2)
+sum(disease_diff)
+
+# estimate for "disease difference" in Table 2
+T_edged = c(15, 20, 22, 25, 30)
+specd <- matrix(0, 30, length(T_edged))
+sensd <- matrix(0, 30, length(T_edged))
+for(seed in 1:30){
+  print(seed)
+  
+  phis <-  mcmc_samples[[seed]]$phi
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+
+  disease_samples <- t(apply(phis_origin, 1, function(x){
+    #x <- phis_origin[1,]
+    diff_d <- NULL
+    for(i in 1:ncol(phis1)){
+      if(x[i] != x[i+ncol(phis1)]){
+        diff_d <- c(diff_d, 1)
+      }else{
+        diff_d <- c(diff_d, 0)
+      }
+    }
+    return(diff_d)
+  }))
+  
+  pd <- apply(disease_samples, 2, mean)
+  threshold_d = sort(pd, decreasing = TRUE)[T_edged]
+  
+  for(i in 1:length(T_edged)){
+    est_diffd <- factor(as.numeric(pd >= threshold_d[i]), levels = c(0,1))
+    conf_matrixd <-table(est_diffd, disease_diff)
+    specd[seed,i] <- sensitivity(conf_matrixd)
+    sensd[seed,i] <- specificity(conf_matrixd)
+  }
+}
+
+table_d <- cbind(T_edged, colMeans(specd), colMeans(sensd))
+
+# specificity and specificity for difference boundaries in Table 1
+spec1_mean_car = colMeans(spec1)
+sens1_mean_car = colMeans(sens1)
+
+spec2_mean_car = colMeans(spec2)
+sens2_mean_car = colMeans(sens2)
+
+spec12_mean_car = colMeans(spec12)
+sens12_mean_car = colMeans(sens12)
+
+spec21_mean_car = colMeans(spec21)
+sens21_mean_car = colMeans(sens21)
+
+table = cbind(T_edge, spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean_car,
+              spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
+
+# model fitting
+WAIC_car <- rep(0,30)
+D_car <- rep(0,30)
+Dn_car <- rep(0,30)
+KL_car <- matrix(0, nrow = 30, ncol = 10000)
+for(seed in 1:30){
+  print(seed)
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  m1 <- X1 %*% beta1 + (phi_true1 - mean(phi_true1))
+  m2 <- X2 %*% beta2 + (phi_true2 - mean(phi_true2))
+  y1 = m1 + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = m2 + sqrt(sigma_esq2) * rnorm(n_county)
+
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  Y2 = c(yo2, yo1)
+  Xb2 = as.matrix(bdiag(Xo2, Xo1))
+  sample.mcmc1 <- mcmc_samples[[seed]]
+  sample.mcmc <- cbind(sample.mcmc1$beta, sample.mcmc1$phi, sample.mcmc1$taue1, sample.mcmc1$taue2)
+  #WAIC
+  PL_single <- matrix(0, nrow = 2*n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    for(j in 1:n){
+      v1 <- sigmasq1
+      PL_single[j,i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v1) - 1/(2*v1)*(yo1[j]-Xo1[j,]%*%as.vector(beta1) - W1_mcmc[j])^2)
+      v2 <- sigmasq2
+      PL_single[(j+n),i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v2) - 1/(2*v2)*(yo2[j]-Xo2[j,]%*%as.vector(beta2) - W2_mcmc[j])^2)
+    }
+  }
+  WAIC_car[seed] <- WAIC(PL_single)$WAIC
+  
+  #D
+  Y_rep1 <- matrix(0, nrow = n, ncol = 10000)
+  Y_rep2 <- matrix(0, nrow = n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    set.seed(seed)
+    z1 <- rnorm(n, 0, 1)
+    z2 <- rnorm(n, 0, 1)
+    Y_rep1[,i] <- Xo1 %*% as.vector(beta1) +  W1_mcmc + sqrt(as.numeric(sigmasq1)) * z1
+    Y_rep2[,i] <- Xo2 %*% as.vector(beta2) +  W2_mcmc + sqrt(as.numeric(sigmasq2)) * z2
+    
+  }
+  mu_rep1 = rowMeans(Y_rep1)
+  mu_rep2 = rowMeans(Y_rep2)
+  
+  var_rep1 = rowVars(Y_rep1)
+  var_rep2 = rowVars(Y_rep2)
+  
+  G.latent1 = sum((yo1 - mu_rep1)^2)
+  P.latent1 = sum(var_rep1)
+  D.latent1 = G.latent1 + P.latent1
+  
+  G.latent2 = sum((yo2 - mu_rep2)^2)
+  P.latent2 = sum(var_rep2)
+  D.latent2 = G.latent2 + P.latent2
+  
+  D_car[seed] = D.latent1 + D.latent2
+  
+  #KL
+  KLi = NULL
+  V = as.matrix(bdiag(sigma_esq1*diag(n), sigma_esq2*diag(n)))
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- 1/theta[121]
+    sigmasq2 <- 1/theta[122]
+    
+    W1_mcmc = theta[5:62]
+    W2_mcmc = theta[63:120]
+    
+    m_est1 <- Xo1 %*% as.vector(beta1) +  W1_mcmc 
+    m_est2 <- Xo2 %*% as.vector(beta2) +  W2_mcmc 
+    V_est = as.matrix(bdiag(sigmasq1*diag(n), sigmasq2*diag(n)))
+    KLi[i] = kl.norm(mu1 = c(m1[final_perm], m2[final_perm]), S1= V, mu2 = c(m_est1, m_est2), S2= V_est)
+  }
+  
+  KL_car[seed,] = KLi
+  
+}
+
+saveRDS(WAIC_car,"WAIC_ARDP_Jcarc25_1.rds")
+saveRDS(D_car,"D_ARDP_Jcarc25_1.rds")
+saveRDS(KL_car,"KL_ARDP_Jcarc25_1.rds")
+
+
+###### DAGAR_ind #####
+load("simBARDP_dagar_indc25_v1.RData")
+
+# "disease difference" in the same region 
+disease_diff <- as.numeric(phi_true1 != phi_true2)
+sum(disease_diff)
+
+# estimate for "disease difference" in Table 2
+T_edged = c(15, 20, 22, 25, 30)
+specd <- matrix(0, 30, length(T_edged))
+sensd <- matrix(0, 30, length(T_edged))
+for(seed in 1:30){
+  print(seed)
+  #seed = 1
+  phis <-  mcmc_samples[[seed]][,6:121]
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  table(apply(phis2, 1, function(x) length(unique(x))))
+  table(apply(phis1, 1, function(x) length(unique(x))))
+  
+  disease_samples <- t(apply(phis_origin, 1, function(x){
+    #x <- phis_origin[1,]
+    diff_d <- NULL
+    for(i in 1:ncol(phis1)){
+      if(x[i] != x[i+ncol(phis1)]){
+        diff_d <- c(diff_d, 1)
+      }else{
+        diff_d <- c(diff_d, 0)
+      }
+    }
+    return(diff_d)
+  }))
+  
+  pd <- apply(disease_samples, 2, mean)
+  threshold_d = sort(pd, decreasing = TRUE)[T_edged]
+  
+  for(i in 1:length(T_edged)){
+    est_diffd <- as.numeric(pd >= threshold_d[i])
+    conf_matrixd <-table(est_diffd, disease_diff)
+    specd[seed,i] <- sensitivity(conf_matrixd)
+    sensd[seed,i] <- specificity(conf_matrixd)
+  }
+}
+
+table_d <- cbind(T_edged, colMeans(specd), colMeans(sensd))
+
+
+# specificity and specificity for difference boundaries in Table 1
+spec1_mean_dagar = colMeans(spec1)
+sens1_mean_dagar = colMeans(sens1)
+
+spec2_mean_dagar = colMeans(spec2)
+sens2_mean_dagar = colMeans(sens2)
+
+spec12_mean_dagar = colMeans(spec12)
+sens12_mean_dagar = colMeans(sens12)
+
+spec21_mean_dagar = colMeans(spec21)
+sens21_mean_dagar = colMeans(sens21)
+
+table = cbind(T_edge, spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens2_mean_dagar,
+              spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
+
+# model fitting
+WAIC <- rep(0,30)
+D_dagar <- rep(0,30)
+KL <- matrix(0, nrow = 30, ncol = 10000)
+for(seed in 1:30){
+  print(seed)
+ 
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  m1 <- X1 %*% beta1 + (phi_true1 - mean(phi_true1))
+  m2 <- X2 %*% beta2 + (phi_true2 - mean(phi_true2))
+  y1 = m1 + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = m2 + sqrt(sigma_esq2) * rnorm(n_county)
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  sample.mcmc <- mcmc_samples[[seed]]
+  #WAIC
+  PL_single <- matrix(0, nrow = 2*n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- theta[1867]
+    sigmasq2 <- theta[1868]
+    
+    W1_mcmc = theta[6:63]
+    W2_mcmc = theta[64:121]
+    
+    for(j in 1:n){
+      v1 <- sigmasq1
+      PL_single[j,i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v1) - 1/(2*v1)*(yo1[j]-Xo1[j,]%*%as.vector(beta1) - W1_mcmc[j])^2)
+      v2 <- sigmasq2
+      PL_single[(j+n),i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v2) - 1/(2*v2)*(yo2[j]-Xo2[j,]%*%as.vector(beta2) - W2_mcmc[j])^2)
+    }
+  }
+  WAIC[seed] <- WAIC(PL_single)$WAIC
+
+#D
+Y_rep1 <- matrix(0, nrow = n, ncol = 10000)
+Y_rep2 <- matrix(0, nrow = n, ncol = 10000)
+for(i in 1:10000){
+  theta <- sample.mcmc[i,]
+  beta1 <- theta[1:2]
+  beta2 <- theta[3:4]
+  sigmasq1 <- theta[1867]
+  sigmasq2 <- theta[1868]
+  
+  W1_mcmc = theta[6:63]
+  W2_mcmc = theta[64:121]
+  
+  set.seed(seed)
+  z1 <- rnorm(n, 0, 1)
+  z2 <- rnorm(n, 0, 1)
+  Y_rep1[,i] <- Xo1 %*% as.vector(beta1) +  W1_mcmc + sqrt(as.numeric(sigmasq1)) * z1
+  Y_rep2[,i] <- Xo2 %*% as.vector(beta2) +  W2_mcmc + sqrt(as.numeric(sigmasq2)) * z2
+  
+}
+mu_rep1 = rowMeans(Y_rep1)
+mu_rep2 = rowMeans(Y_rep2)
+
+var_rep1 = rowVars(Y_rep1)
+var_rep2 = rowVars(Y_rep2)
+
+G.latent1 = sum((yo1 - mu_rep1)^2)
+P.latent1 = sum(var_rep1)
+D.latent1 = G.latent1 + P.latent1
+
+G.latent2 = sum((yo2 - mu_rep2)^2)
+P.latent2 = sum(var_rep2)
+D.latent2 = G.latent2 + P.latent2
+
+D_dagar[seed] = D.latent1 + D.latent2
+
+#KL
+KLi = NULL
+V = as.matrix(bdiag(sigma_esq1*diag(n), sigma_esq2*diag(n)))
+for(i in 1:10000){
+  theta <- sample.mcmc[i,]
+  
+  beta1 <- theta[1:2]
+  beta2 <- theta[3:4]
+  sigmasq1 <- theta[1867]
+  sigmasq2 <- theta[1868]
+  
+  W1_mcmc = theta[6:63]
+  W2_mcmc = theta[64:121]
+  
+  m_est1 <- Xo1 %*% as.vector(beta1) +  W1_mcmc 
+  m_est2 <- Xo2 %*% as.vector(beta2) +  W2_mcmc 
+  V_est = as.matrix(bdiag(sigmasq1*diag(n), sigmasq2*diag(n)))
+  KLi[i] = kl.norm(mu1 = c(m1[final_perm], m2[final_perm]), S1= V, mu2 = c(m_est1, m_est2), S2= V_est)
+}
+
+KL[seed,] = KLi
+}
+saveRDS(WAIC,"WAIC_ARDP_dagar_indc25_v1.rds")
+saveRDS(D_dagar,"D_ARDP_dagar_indc25_v1.rds")
+saveRDS(KL,"KL_ARDP_dagar_indc25_v1.rds")
+
+
+###### CAR_ind #####
+load("simBARDP_car_indc25.RData")
+
+disease_diff <- as.numeric(phi_true1 != phi_true2)
+sum(disease_diff)
+
+# disease difference in Table 2
+T_edged = c(10, 15, 20,22, 25, 30)
+specd <- matrix(0, 30, length(T_edged))
+sensd <- matrix(0, 30, length(T_edged))
+for(seed in 1:30){
+  print(seed)
+  #seed = 1
+  phis <-  mcmc_samples[[seed]][,6:121]
+  phis1 <- phis[,1:58][,order(final_perm)]
+  phis2 <- phis[,59:116][,order(final_perm)]
+  phis_origin <- cbind(phis1, phis2)
+  table(apply(phis2, 1, function(x) length(unique(x))))
+  table(apply(phis1, 1, function(x) length(unique(x))))
+  
+  disease_samples <- t(apply(phis_origin, 1, function(x){
+    diff_d <- NULL
+    for(i in 1:ncol(phis1)){
+      if(x[i] != x[i+ncol(phis1)]){
+        diff_d <- c(diff_d, 1)
+      }else{
+        diff_d <- c(diff_d, 0)
+      }
+    }
+    return(diff_d)
+  }))
+  
+  pd <- apply(disease_samples, 2, mean)
+  threshold_d = sort(pd, decreasing = TRUE)[T_edged]
+  
+  for(i in 1:length(T_edged)){
+    est_diffd <- as.numeric(pd >= threshold_d[i])
+    conf_matrixd <-table(est_diffd, disease_diff)
+    specd[seed,i] <- sensitivity(conf_matrixd)
+    sensd[seed,i] <- specificity(conf_matrixd)
+  }
+}
+
+table_d <- cbind(T_edged, colMeans(specd), colMeans(sensd))
+
+
+# specificity and specificity for difference boundaries in Table 1
+spec1_mean_car = colMeans(spec1)
+sens1_mean_car = colMeans(sens1)
+
+spec2_mean_car = colMeans(spec2)
+sens2_mean_car = colMeans(sens2)
+
+spec12_mean_car = colMeans(spec12)
+sens12_mean_car = colMeans(sens12)
+
+spec21_mean_car = colMeans(spec21)
+sens21_mean_car = colMeans(sens21)
+
+table = cbind(T_edge, spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean_car,
+              spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
+
+# model fitting
+WAIC_car <- rep(0,30)
+D_car <- rep(0,30)
+KL_car <- matrix(0, nrow = 30, ncol = 10000)
+for(seed in 1:30){
+  print(seed)
+
+  set.seed(seed)
+  X1=cbind(1, rnorm(n_county))
+  X2=cbind(1, rnorm(n_county))
+  beta1=c(2,5)
+  beta2=c(1,6)
+  #beta = c(beta1, beta2)
+  sigma_esq1 = 0.1
+  sigma_esq2 = 0.1
+  m1 <- X1 %*% beta1 + (phi_true1 - mean(phi_true1))
+  m2 <- X2 %*% beta2 + (phi_true2 - mean(phi_true2))
+  y1 = m1 + sqrt(sigma_esq1) * rnorm(n_county)
+  y2 = m2 + sqrt(sigma_esq2) * rnorm(n_county)
+  #y = X %*% beta + phi_true  + sqrt(sigma_e2) * rnorm(n_county)
+  Xo1 <- X1[final_perm,]
+  yo1 <- y1[final_perm]
+  Xo2 <- X2[final_perm,]
+  yo2 <- y2[final_perm]
+  
+  
+  Y1 = c(yo1, yo2)
+  Xb1 = as.matrix(bdiag(Xo1, Xo2))
+  
+  sample.mcmc <- mcmc_samples[[seed]]
+  #WAIC
+  PL_single <- matrix(0, nrow = 2*n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- theta[1867]
+    sigmasq2 <- theta[1868]
+    
+    W1_mcmc = theta[6:63]
+    W2_mcmc = theta[64:121]
+    
+    for(j in 1:n){
+      v1 <- sigmasq1
+      PL_single[j,i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v1) - 1/(2*v1)*(yo1[j]-Xo1[j,]%*%as.vector(beta1) - W1_mcmc[j])^2)
+      v2 <- sigmasq2
+      PL_single[(j+n),i] <- as.numeric(-1/2*log(2*pi) - 1/2*log(v2) - 1/(2*v2)*(yo2[j]-Xo2[j,]%*%as.vector(beta2) - W2_mcmc[j])^2)
+    }
+  }
+  WAIC_car[seed] <- WAIC(PL_single)$WAIC
+  
+  #D
+  Y_rep1 <- matrix(0, nrow = n, ncol = 10000)
+  Y_rep2 <- matrix(0, nrow = n, ncol = 10000)
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- theta[1867]
+    sigmasq2 <- theta[1868]
+    
+    W1_mcmc = theta[6:63]
+    W2_mcmc = theta[64:121]
+    
+    set.seed(seed)
+    z1 <- rnorm(n, 0, 1)
+    z2 <- rnorm(n, 0, 1)
+    Y_rep1[,i] <- Xo1 %*% as.vector(beta1) +  W1_mcmc + sqrt(as.numeric(sigmasq1)) * z1
+    Y_rep2[,i] <- Xo2 %*% as.vector(beta2) +  W2_mcmc + sqrt(as.numeric(sigmasq2)) * z2
+    
+  }
+  mu_rep1 = rowMeans(Y_rep1)
+  mu_rep2 = rowMeans(Y_rep2)
+  
+  var_rep1 = rowVars(Y_rep1)
+  var_rep2 = rowVars(Y_rep2)
+  
+  G.latent1 = sum((yo1 - mu_rep1)^2)
+  P.latent1 = sum(var_rep1)
+  D.latent1 = G.latent1 + P.latent1
+  
+  G.latent2 = sum((yo2 - mu_rep2)^2)
+  P.latent2 = sum(var_rep2)
+  D.latent2 = G.latent2 + P.latent2
+  
+  D_car[seed] = D.latent1 + D.latent2
+  
+  #KL
+  KLi = NULL
+  V = as.matrix(bdiag(sigma_esq1*diag(n), sigma_esq2*diag(n)))
+  for(i in 1:10000){
+    theta <- sample.mcmc[i,]
+    
+    beta1 <- theta[1:2]
+    beta2 <- theta[3:4]
+    sigmasq1 <- theta[1867]
+    sigmasq2 <- theta[1868]
+    
+    W1_mcmc = theta[6:63]
+    W2_mcmc = theta[64:121]
+    
+    m_est1 <- Xo1 %*% as.vector(beta1) +  W1_mcmc 
+    m_est2 <- Xo2 %*% as.vector(beta2) +  W2_mcmc 
+    V_est = as.matrix(bdiag(sigmasq1*diag(n), sigmasq2*diag(n)))
+    KLi[i] = kl.norm(mu1 = c(m1[final_perm], m2[final_perm]), S1= V, mu2 = c(m_est1, m_est2), S2= V_est)
+  }
+  
+  KL_car[seed,] = KLi
+}
+
+saveRDS(WAIC_car,"WAIC_ARDP_car_indc25.rds")
+saveRDS(D_car,"D_ARDP_car_indc25.rds")
+saveRDS(KL_car,"KL_ARDP_car_indc25.rds")
+
+```
+
+### 6. Summary for WAIC, D score and KL divergence
+
+Figure 2. Density plots for WAICs, D scores and mean KL divergence over 30 datasets as shown in (a), (b) and (c) respectively, using two joint models, MCAR (blue plot in CAR panel) and MDAGAR (blue plot in DAGAR panel), and two independent-disease models, CARind (red plot in CAR panel) and DAGARind (red plot in DAGAR panel). The dotted vertical line shows the mean for each plot.
+```{r}
+# Import assessment results
+WAIC_ARDP_dagar_indc = readRDS("WAIC_ARDP_dagar_indc25_v1.rds")
+D_ARDP_dagar_indc = readRDS("D_ARDP_dagar_indc25_v1.rds")
+KL_ARDP_dagar_indc = readRDS("KL_ARDP_dagar_indc25_v1.rds")
+
+WAIC_ARDP_car_indc = readRDS("WAIC_ARDP_car_indc25.rds")
+D_ARDP_car_indc = readRDS("D_ARDP_car_indc25.rds")
+KL_ARDP_car_indc = readRDS("KL_ARDP_car_indc25.rds")
+
+WAIC_ARDP_Jdagarc = readRDS("WAIC_ARDP_Jdagarc25.rds")
+D_ARDP_Jdagarc = readRDS("D_ARDP_Jdagarc25.rds")
+KL_ARDP_Jdagarc = readRDS("KL_ARDP_Jdagarc25.rds")
+
+WAIC_ARDP_Jcarc = readRDS("WAIC_ARDP_Jcarc25_1.rds")
+D_ARDP_Jcarc = readRDS("D_ARDP_Jcarc25_1.rds")
+KL_ARDP_Jcarc = readRDS("KL_ARDP_Jcarc25_1.rds")
+
+# Plots for WAIC
+WAIC_value = c(WAIC_ARDP_dagar_indc, WAIC_ARDP_Jdagarc, WAIC_ARDP_car_indc, WAIC_ARDP_Jcarc)
+Type = c(rep("DAGAR",60),rep("CAR",60))
+Model = c(rep("Independent-disease",30), rep("Joint",30), rep("Independent-disease",30), rep("Joint",30))
+Full_model = paste(Type, "-", Model, sep="")
+df = data.frame(Model)
+df$WAIC = WAIC_value
+df$Type = Type
+df$Full_model= Full_model
+
+library(plyr)
+WAIC_mu <- ddply(df, "Full_model", summarise, WAIC.mean=mean(WAIC))
+df1 = merge(df, WAIC_mu, by = "Full_model")
+
+
+ggplot(df1, aes(x=WAIC, color=Model,fill=Model)) +
+  geom_density(alpha=0.4, adjust = 1.5) + 
+  geom_vline(data=df1, aes(xintercept=WAIC.mean, color=Model),
+             linetype="dashed") +
+  facet_wrap(~Type) +
+  xlab("WAIC") + ylab("Density")+
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16),
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        legend.position = "none",
+        strip.text.x = element_text(size = 14))
+
+
+# Plots for D score
+D_value = c(D_ARDP_dagar_indc, D_ARDP_Jdagarc,D_ARDP_car_indc, D_ARDP_Jcarc)
+df = data.frame(Model)
+df$D = D_value
+df$Type = Type
+df$Full_model= Full_model
+D_mu <- ddply(df, "Full_model", summarise, D.mean=mean(D))
+df1 = merge(df, D_mu, by = "Full_model")
+
+
+ggplot(df1, aes(x=D, color=Model,fill=Model)) +
+  geom_density(alpha=0.4, adjust = 1.5) + 
+  geom_vline(data=df1, aes(xintercept=D.mean, color=Model),
+             linetype="dashed") +
+  facet_wrap(~Type) +
+  xlab("D score") + ylab("Density")+
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16),
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        legend.position = "none",
+        strip.text.x = element_text(size = 14))
+
+
+# Plots for Kullback-Leibler divergence
+KL_value = c(rowMeans(KL_ARDP_dagar_indc), rowMeans(KL_ARDP_Jdagarc),rowMeans(KL_ARDP_car_indc), rowMeans(KL_ARDP_Jcarc))
+df = data.frame(Model)
+df$KL = KL_value
+df$Type = Type
+df$Full_model= Full_model
+KL_mu <- ddply(df, "Full_model", summarise, KL.mean=mean(KL))
+df1 = merge(df, KL_mu, by = "Full_model")
+
+ggplot(df1, aes(x=KL, color=Model,fill=Model)) +
+  geom_density(alpha=0.4, adjust = 1.5) + 
+  geom_vline(data=df1, aes(xintercept=KL.mean, color=Model),
+             linetype="dashed") +
+  facet_wrap(~Type) +
+  xlab("KL") + ylab("Density")+
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16),
+        legend.title=element_text(size=14),
+        legend.text=element_text(size=14),
+        strip.text.x = element_text(size = 14))
+
+```
+
+
