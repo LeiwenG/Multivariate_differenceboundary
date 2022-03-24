@@ -14,9 +14,9 @@ sum(disease_diff)
 
 # estimate for "disease difference"
 T_edged = c(10, 15, 20, 22, 25, 30)
-specd <- matrix(0, 30, length(T_edged))
-sensd <- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd <- matrix(0, 50, length(T_edged))
+sensd <- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
 
   phis <-  mcmc_samples[[seed]]$phi
@@ -67,10 +67,10 @@ table = cbind(spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens2_mean_d
               spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
 
 # model fitting
-WAIC <- rep(0,30)
-D_dagar <- rep(0,30)
-KL <- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC <- rep(0,50)
+D_dagar <- rep(0,50)
+KL <- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)
@@ -195,7 +195,7 @@ sum(disease_diff)
 T_edged = c(10, 15, 20, 22, 25, 30)
 specd <- matrix(0, 30, length(T_edged))
 sensd <- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+for(seed in 1:50){
   print(seed)
   
   phis <-  mcmc_samples[[seed]]$phi
@@ -246,11 +246,11 @@ table = cbind(spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean_car,
               spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
 
 # model fitting
-WAIC_car <- rep(0,30)
-D_car <- rep(0,30)
-Dn_car <- rep(0,30)
-KL_car <- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC_car <- rep(0,50)
+D_car <- rep(0,50)
+Dn_car <- rep(0,50)
+KL_car <- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
   set.seed(seed)
   X1=cbind(1, rnorm(n_county))
@@ -375,9 +375,9 @@ sum(disease_diff)
 
 # estimate for "disease difference"
 T_edged = c(10, 15, 20, 22, 25, 30)
-specd <- matrix(0, 30, length(T_edged))
-sensd <- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd <- matrix(0, 50, length(T_edged))
+sensd <- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
   #seed = 1
   phis <-  mcmc_samples[[seed]][,6:121]
@@ -431,10 +431,10 @@ table = cbind(spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens2_mean_d
               spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
 
 # model fitting
-WAIC <- rep(0,30)
-D_dagar <- rep(0,30)
-KL <- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC <- rep(0,50)
+D_dagar <- rep(0,50)
+KL <- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
  
   set.seed(seed)
@@ -585,9 +585,9 @@ true_diffm <- rbind(true_diff1, true_diff2, true_diff3, true_diff4)
 
 # disease difference
 T_edged = c(10, 15, 20,22, 25, 30)
-specd <- matrix(0, 30, length(T_edged))
-sensd <- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd <- matrix(0, 50, length(T_edged))
+sensd <- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
   #seed = 1
   phis <-  mcmc_samples[[seed]][,6:121]
@@ -640,10 +640,10 @@ table = cbind(spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean_car,
               spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
 
 # model fitting
-WAIC_car <- rep(0,30)
-D_car <- rep(0,30)
-KL_car <- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC_car <- rep(0,50)
+D_car <- rep(0,50)
+KL_car <- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)

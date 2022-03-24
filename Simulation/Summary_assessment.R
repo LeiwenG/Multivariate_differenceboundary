@@ -18,8 +18,8 @@ KL_ARDP_Jcarc = readRDS("KL_ARDP_Jcarc25_1.rds")
 
 # Plots for WAIC
 WAIC_value = c(WAIC_ARDP_dagar_indc, WAIC_ARDP_Jdagarc, WAIC_ARDP_car_indc, WAIC_ARDP_Jcarc)
-Type = c(rep("DAGAR",60),rep("CAR",60))
-Model = c(rep("Independent-disease",30), rep("Joint",30), rep("Independent-disease",30), rep("Joint",30))
+Type = c(rep("DAGAR",100),rep("CAR",100))
+Model = c(rep("Independent-disease",50), rep("Joint",50), rep("Independent-disease",50), rep("Joint",50))
 Full_model = paste(Type, "-", Model, sep="")
 df = data.frame(Model)
 df$WAIC = WAIC_value

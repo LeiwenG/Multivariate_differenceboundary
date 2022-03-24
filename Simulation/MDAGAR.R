@@ -523,8 +523,8 @@ spec21 <- matrix(0, 30, length(T_edge))
 sens21 <- matrix(0, 30, length(T_edge))
 mcmc_samples <- list()
 
-# Simulate 30 datasets
-for(seed in 1:30){
+# Simulate 50 datasets
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)

@@ -1,0 +1,63 @@
+
+    model
+    {
+    
+    for (i in 1:k)
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue1)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ1[i,i])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    for (i in (k+1):(2*k))
+    {
+    mu[i] <- X[i,] %*% beta + phi[i]
+    Y[i] ~ dnorm(mu[i], taue2)
+    phi[i] <- inprod(theta, u[i,])
+    Fr[i] <- pnorm(r[i], 0, 1/invQ2[i-k,i-k])
+    for(h in 2:H){
+    u[i, h] <- ifelse(Fr[i] > sum_pi[h-1] && Fr[i] < sum_pi[h], 1, 0)
+    }
+    u[i,1] <- ifelse(sum(u[i, 2:H])==0, 1, 0)
+    }
+    
+    pi[1] <- V[1]
+    prod[1] <- 1 - pi[1]
+    for (h in 2:H){
+    prod[h] <- prod[h-1] * (1-V[h])
+    pi[h] <- V[h] * prod[h-1]
+    }
+
+    for (h in 1:H){
+    theta[h] ~ dnorm(0,taus)
+    V[h] ~ dbeta(1,alpha)
+    sum_pi[h] <- sum(pi[1:h])
+    }
+    
+    Q1 <- tau1 * (D - rho1 * Minc)
+    Q2 <- tau2 * (D - rho2 * Minc)
+    r1[1:k] ~ dmnorm(rep(0, k), Q1)
+    r2[1:k] ~ dmnorm(rep(0, k), Q2)
+    r[1:k] <- r1[1:k]
+    r[(k+1):(2*k)] <- r2[1:k]
+    
+    invQ1 <- inverse(Q1)
+    invQ2 <- inverse(Q2)
+    
+    rho1 ~ dunif(0, 0.98)
+    rho2 ~ dunif(0, 0.98)
+    tau1 ~ dgamma(2, 0.1)
+    tau2 ~ dgamma(2, 0.1)
+    taue1 ~ dgamma(2, 0.1)
+    taue2 ~ dgamma(2, 0.1)
+    vare1 <- 1/taue1
+    vare2 <- 1/taue2
+    taus ~ dgamma(2,1)
+    beta[1:ncolumn] ~ dmnorm(rep(0,ncolumn), (0.0001*I));
+    }
+    
