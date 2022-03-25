@@ -432,7 +432,7 @@ library(bridgesampling)</code></pre>
 <div id="import-dataset-county-level-extracted-from-seer" class="section level4">
 <h4>2.1 Import dataset (county-level) extracted from SEER</h4>
 <p>Cancers: lung, esophageal, larynx and colorectal</p>
-<p>Outcome: Standard incidence ratios (SMR<span class="math inline">\(_{id} = Y_{id}/E_{id}\)</span>) in the years from 2012 to 2016.</p>
+<p>Outcome: Standard incidence ratios (SIR<span class="math inline">\(_{id} = Y_{id}/E_{id}\)</span>) in the years from 2012 to 2016.</p>
 <p><span class="math inline">\(Y_{id}\)</span> - observed counts of incidence for each cancer <span class="math inline">\(d\)</span> in each county <span class="math inline">\(i\)</span></p>
 <p><span class="math inline">\(E_{id}\)</span> - expected number of cases for each cancer <span class="math inline">\(d\)</span> in each county <span class="math inline">\(i\)</span></p>
 <p>Covariates (percentage): adult cigarette smoking rates (smoking), older than 65 years old (age), percentages of unemployed residents (unemployed)</p>
@@ -445,28 +445,10 @@ smoking &lt;- read.csv(&quot;data/smoking.csv&quot;)
 smoking$smoking &lt;- as.numeric(substr(smoking$Cigarette.Smoking.Rate., 1,4))
 
 #Import age-adjusted incidence rates for 4 cancers in California
-rate_5y &lt;- read.csv(&quot;data/age_adjusted.csv&quot;)
-rate_CA = rate_5y[substr(rate_5y$State_county,1,2) == &quot;CA&quot;,]
-
-rate_lung = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008==&quot;Lung and Bronchus&quot;,]
-rate_lung = rate_lung[order(readr::parse_number(as.character(rate_lung$State_county))),]
-rate_lung$E_count = (sum(rate_lung$Count) / sum(rate_lung$Population)) * rate_lung$Population
-rate_lung$standard_ratio = rate_lung$Count / rate_lung$E_count
-
-rate_esophagus = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008==&quot;Esophagus&quot;,]
-rate_esophagus = rate_esophagus[order(readr::parse_number(as.character(rate_esophagus$State_county))),]
-rate_esophagus$E_count = (sum(rate_esophagus$Count) / sum(rate_esophagus$Population)) * rate_esophagus$Population
-rate_esophagus$standard_ratio = rate_esophagus$Count / rate_esophagus$E_count
-
-rate_larynx = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008==&quot;Larynx&quot;,]
-rate_larynx = rate_larynx[order(readr::parse_number(as.character(rate_larynx$State_county))),]
-rate_larynx$E_count = (sum(rate_larynx$Count) / sum(rate_larynx$Population)) * rate_larynx$Population
-rate_larynx$standard_ratio = rate_larynx$Count / rate_larynx$E_count
-
-rate_colrect = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008==&quot;Colon and Rectum&quot;,]
-rate_colrect = rate_colrect[order(readr::parse_number(as.character(rate_colrect$State_county))),]
-rate_colrect$E_count = (sum(rate_colrect$Count) / sum(rate_colrect$Population)) * rate_colrect$Population
-rate_colrect$standard_ratio = rate_colrect$Count / rate_colrect$E_count
+rate_lung = rate_5y %&gt;% filter(Site.code == &quot;Lung and Bronchus&quot;)
+rate_esophagus = rate_5y %&gt;% filter(Site.code == &quot;Esophagus&quot;)
+rate_larynx = rate_5y %&gt;% filter(Site.code == &quot;Larynx&quot;)
+rate_colrect = rate_5y %&gt;% filter(Site.code == &quot;Colon and Rectum&quot;)
 
 ################## Data construction ###########
 
@@ -487,13 +469,13 @@ sex1 = sex[substr(sex$State_county,1,2) == &quot;CA&quot;&amp;sex$Sex==&quot;Mal
 insurance1 = insurance[substr(insurance$State_county,1,2) == &quot;CA&quot;&amp;insurance$Insurance_Recode_2007==&quot;Uninsured&quot;,]
 
 rate_lung1 = cbind(rate_lung, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
-colnames(rate_lung1) = c(&quot;county&quot;, &quot;site&quot;, &quot;rate&quot;, &quot;count&quot;, &quot;population&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
+colnames(rate_lung1) = c(&quot;county&quot;, &quot;O_count&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;site&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
 rate_esophagus1 = cbind(rate_esophagus, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
-colnames(rate_esophagus1) = c(&quot;county&quot;, &quot;site&quot;, &quot;rate&quot;, &quot;count&quot;, &quot;population&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
+colnames(rate_esophagus1) = c(&quot;county&quot;, &quot;O_count&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;site&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
 rate_larynx1 = cbind(rate_larynx, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
-colnames(rate_larynx1) = c(&quot;county&quot;, &quot;site&quot;, &quot;rate&quot;, &quot;count&quot;, &quot;population&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
+colnames(rate_larynx1) = c(&quot;county&quot;, &quot;O_count&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;site&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)
 rate_colrect1 = cbind(rate_colrect, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
-colnames(rate_colrect1) = c(&quot;county&quot;, &quot;site&quot;, &quot;rate&quot;, &quot;count&quot;, &quot;population&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)</code></pre>
+colnames(rate_colrect1) = c(&quot;county&quot;, &quot;O_count&quot;, &quot;E_count&quot;, &quot;standard_ratio&quot;, &quot;site&quot;, &quot;smoking&quot;, &quot;young&quot;,&quot;old&quot;, &quot;highschool&quot;, &quot;poverty&quot;, &quot;unemployed&quot;, &quot;black&quot;, &quot;male&quot;, &quot;uninsured&quot;)</code></pre>
 </div>
 <div id="combine-cancer-data-with-the-california-map-for-each-county" class="section level4">
 <h4>2.2 Combine cancer data with the California map for each county</h4>
@@ -549,35 +531,25 @@ par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
 plot(0, 0, type = &quot;n&quot;, bty = &quot;n&quot;, xaxt = &quot;n&quot;, yaxt = &quot;n&quot;)
 legend(&quot;center&quot;, legend=leg.txt, xpd = TRUE, cex=1.5, bty=&quot;n&quot;, horiz = FALSE, 
        fill = color.pallete)</code></pre>
-<p>Figure 11: Maps of county-level covariates: adult cigarette smoking rates (left), percentage of residents older than 65 years old (middle) and unemployed residents (right).</p>
-<pre class="r"><code>ca.poly$old = rate_lung1$old
-ca.poly$unemployed = rate_lung1$unemployed
+<p>Figure 11: Maps of county-level covariates: adult cigarette smoking rates (left) and unemployed residents (right).</p>
+<pre class="r"><code>ca.poly$unemployed = rate_lung1$unemployed
 color.pallete = rev(brewer.pal(5,&quot;RdBu&quot;))
 brks_fit_smoking = quantile(ca.poly$smoking, c(0, 0.2, 0.4, 0.6, 0.8, 1))
 class.smoking = classIntervals(var=ca.poly$smoking, n=5, style=&quot;fixed&quot;,
                                   fixedBreaks=brks_fit_smoking, dataPrecision=4)
 color.code.smoking = findColours(class.smoking, color.pallete)
 
-brks_fit_old = quantile(ca.poly$old, c(0, 0.2, 0.4, 0.6, 0.8, 1))
-class.old = classIntervals(var=ca.poly$old, n=5, style=&quot;fixed&quot;,
-                           fixedBreaks=brks_fit_old, dataPrecision=4)
-color.code.old = findColours(class.old, color.pallete)
 
 brks_fit_unemployed = quantile(ca.poly$unemployed, c(0, 0.2, 0.4, 0.6, 0.8, 1))
 class.unemployed = classIntervals(var=ca.poly$unemployed, n=5, style=&quot;fixed&quot;,
                                   fixedBreaks=brks_fit_unemployed, dataPrecision=4)
 color.code.unemployed = findColours(class.unemployed, color.pallete)
 
-par(mfrow=c(1,3), oma = c(0,0,4,0) + 0.1, mar = c(0,0,1,0) + 0.1)
+par(mfrow=c(1,2), oma = c(0,0,4,0) + 0.1, mar = c(0,0,1,0) + 0.1)
 
 plot(ca.poly, col = color.code.smoking)
 leg.txt = c(&quot;6.70 - 11.04&quot;, &quot;11.04 - 12.60&quot;, &quot;12.60 - 15.30&quot;, &quot;15.30 - 18.10&quot;, &quot;18.10 - 25.50&quot;)
 legend(&quot;bottomleft&quot;, title=&quot;Smoking (%)&quot;, legend=leg.txt, xpd = TRUE, cex=1.25, bty=&quot;n&quot;, horiz = FALSE,
-       fill = color.pallete)
-
-plot(ca.poly, col = color.code.old)
-leg.txt = c(&quot;9.07 - 12.05&quot;, &quot;12.05 - 13.21&quot;, &quot;13.21 - 15.63&quot;, &quot;15.63 - 20.66&quot;, &quot;20.66 - 26.07&quot;)
-legend(&quot;bottomleft&quot;, title=&quot;Old (%)&quot;, legend=leg.txt, xpd = TRUE, cex=1.25, bty=&quot;n&quot;, horiz = FALSE,
        fill = color.pallete)
 
 plot(ca.poly, col = color.code.unemployed)
@@ -763,8 +735,15 @@ neighbor_list_diff4 &lt;- neighbor_list0[raw_diff4 == 1, ]</code></pre>
 <pre class="r"><code># Libraries for map with boundaires
 if (!require(gpclib)) install.packages(&quot;gpclib&quot;, type=&quot;source&quot;)
 gpclibPermit()
+p = list()
+p_est=list()
 
 library(plyr)
+ca.poly$lung_SIR = rate_lung$standard_ratio
+ca.poly$esophagus_SIR = rate_esophagus$standard_ratio
+ca.poly$larynx_SIR = rate_larynx$standard_ratio
+ca.poly$colrect_SIR = rate_colrect$standard_ratio
+
 ca.poly@data$id &lt;- rownames(ca.poly@data)
 ca.poly.f &lt;- fortify(ca.poly, region = &quot;id&quot;)
 ca.poly.df &lt;- join(ca.poly.f, ca.poly@data, by = &quot;id&quot;)
@@ -811,80 +790,117 @@ path[[130]][nrow(path[[130]])+1,] &lt;- path[[130]][1,]
 path[[130]] &lt;- path[[130]][-1,]
 path[[133]][nrow(path[[133]])+1,] &lt;- path[[133]][1,]
 path[[133]] &lt;- path[[133]][-1,]</code></pre>
-<pre class="r"><code>edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+<pre class="r"><code>breaks1 = quantile(ca.poly$lung_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks2 = quantile(ca.poly$esophagus_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks3 = quantile(ca.poly$larynx_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks4 = quantile(ca.poly$colrect_SIR, c(0.2, 0.4, 0.6, 0.8))
+
+
+color = rev(brewer.pal(5,&quot;RdBu&quot;))
+
+ch_edge1 &lt;- bd_diffl1[which(raw_diff1 == 1)]
+edge_plot1 &lt;- ggplot() +
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
                #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
                #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
+               alpha = 0.6
+               #fill = &quot;white&quot;
                #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
-  )
+  ) + 
+  scale_fill_stepsn(colors = color,  
+                    breaks = breaks1)
+
 for(i in which(raw_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;, 
+                                      size = ((bd_diffl1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(&quot;Lung&quot;)
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) + 
+    #ggtitle(&quot;Lung (T = 75)&quot;)
+    ggtitle(paste(&quot;Lung&quot;))
 }
 
+
+ch_edge2 &lt;- bd_diffl2[which(raw_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
                #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
                #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
+               alpha = 0.6
+               #fill = &quot;white&quot;
                #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
-  )
+  ) + 
+  scale_fill_stepsn(colors = color,  
+                    breaks = breaks2)
 for(i in which(raw_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;, 
+                                      size = ((bd_diffl2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(&quot;Esophageal&quot;)
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) + 
+    ggtitle(paste(&quot;Esophageal&quot;))
 }
 
+ch_edge3 &lt;- bd_diffl3[which(raw_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
                #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
                #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
+               alpha = 0.6
+               #fill = &quot;white&quot;
                #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
-  )
+  ) + 
+  scale_fill_stepsn(colors = color,  
+                    breaks = breaks3)
 for(i in which(raw_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;, 
+                                      size = ((bd_diffl3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(&quot;Larynx&quot;)
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) + 
+    #ggtitle(&quot;Larynx (T = 59)&quot;)
+    ggtitle(paste(&quot;Larynx&quot;))
 }
 
+ch_edge4 &lt;- bd_diffl4[which(raw_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
                #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
                #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
+               alpha = 0.6
+               #fill = &quot;white&quot;
                #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
-  )
+  ) + 
+  scale_fill_stepsn(colors = color,  
+                    breaks = breaks4)
 for(i in which(raw_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;, 
+                                      size = ((bd_diffl4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(&quot;Colorectal&quot;)
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) + 
+    #ggtitle(&quot;Colorectal (T = 67)&quot;)
+    ggtitle(paste(&quot;Colorectal&quot;))
 }
 
 ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2)</code></pre>
@@ -899,20 +915,20 @@ ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2)</c
 <div id="data-in-models-without-covariates" class="section level4">
 <h4>3.1 Data in models without covariates</h4>
 <p>We run models for incidence data without covariates (only include intercept)</p>
-<pre class="r"><code>Y1 = rate_lung1$count[final_perm]
-Y2 = rate_esophagus1$count[final_perm]
-Y3 = rate_larynx1$count[final_perm]
-Y4 = rate_colrect1$count[final_perm]
+<pre class="r"><code>Y1 = rate_lung1$O_count[final_perm]
+Y2 = rate_esophagus1$O_count[final_perm]
+Y3 = rate_larynx1$O_count[final_perm]
+Y4 = rate_colrect1$O_count[final_perm]
 
 E1 = rate_lung1$E_count[final_perm]
 E2 = rate_esophagus1$E_count[final_perm]
 E3 = rate_larynx1$E_count[final_perm]
 E4 = rate_colrect1$E_count[final_perm]
 
-X1 = as.matrix(cbind(1,rate_lung1[,8:14]))[final_perm,]
-X2 = as.matrix(cbind(1,rate_esophagus1[,8:14]))[final_perm,]
-X3 = as.matrix(cbind(1,rate_larynx1[,8:14]))[final_perm,]
-X4 = as.matrix(cbind(1,rate_colrect1[,8:14]))[final_perm,]
+X1 = as.matrix(cbind(1,rate_lung1[,6:14]))[final_perm,]
+X2 = as.matrix(cbind(1,rate_esophagus1[,6:14]))[final_perm,]
+X3 = as.matrix(cbind(1,rate_larynx1[,6:14]))[final_perm,]
+X4 = as.matrix(cbind(1,rate_colrect1[,6:14]))[final_perm,]
 
 Y = c(Y1,Y2,Y3,Y4)
 E = c(E1, E2, E3, E4)
@@ -986,21 +1002,21 @@ Dinv_new &lt;- function(Rho, n, cn, ns, udnei,q){
 #######################################
 
 # Metropolis within Gibbs Sampler for MCMC updating 
-ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3 = as.matrix(X3[,1]), x4 = as.matrix(X4[,1]), 
+ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3 = as.matrix(X3[,1]), x4 = as.matrix(X4[,1]),
                           X = X, E = E, Minc, alpha=1, q = 4, n.atoms=15, runs=10000, burn=1000){
   #y:       data
   #x:       covariates
   #n.atoms: number of atoms in the mixture dist.
   #theta:      the theta&#39;s (iid from baseline) in the model
   #alpha:     v~beta(1,alpha)
-  #u:       the index indicator of spatial random effect 
+  #u:       the index indicator of spatial random effect
   #rho:     sptatial autocorrelation parameter in DAGAR
-  #Minc:       0-1 adjacency matrix 
+  #Minc:       0-1 adjacency matrix
   #V_r:     covariance matrix of joint MDAGAR
   #Q:       presicion matrix of DAGAR
   #r:       random effects following DAGAR
   #F_r:     Marginal CDF of r
-  #taued:   presicion in Baseline of DP for disease d   
+  #taued:   presicion in Baseline of DP for disease d
   #taus:    precision for theta
   
   
@@ -1062,6 +1078,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
       }
     }
   }
+  #Sigma = A%*%t(A)
   
   Q = Dinv_new(Rho = rho, n, cn, ns, udnei, q)
   invQ1 = solve(Q[[1]])
@@ -1069,8 +1086,12 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
   invQ3 = solve(Q[[3]])
   invQ4 = solve(Q[[4]])
   
+  #f1 = rmvnorm(1, rep(0, n), invQ1)
+  #f2 = rmvnorm(1, rep(0, n), invQ2)
+  #f = c(f1, f2)
   kprod = kronecker(A, diag(n))
   invQ = as.matrix(bdiag(bdiag(invQ1, invQ2), bdiag(invQ3, invQ4)))
+  #r = kprod %*% f
   
   Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
   r = rmvnorm(1, rep(0, nq), Vr)
@@ -1088,16 +1109,18 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
   acceptbeta1 = acceptbeta2=acceptbeta3=acceptbeta4 = 0
   accepttheta = 0
   
+  #sumtp&lt;-summu&lt;-summu2&lt;-rep(0,n)
   count&lt;-afterburn&lt;-0
   burn = burn + 1
-
+  #iter = 1
+  #runs = 1000
   for(iter in 1:runs){
     
-    if(iter == runs){
+    if(iter %% 100 == 0){
       print(iter)
-      print(acceptA/(iter-1)) 
+      print(acceptA/(iter-1))
       print(acceptr/nq/(iter-1))
-      print(acceptrho/(iter-1)) 
+      print(acceptrho/(iter-1))
       print(acceptv/n.atoms/(iter-1))
       print(accepttheta/n.atoms/(iter-1))
       print(acceptbeta1/(iter-1))
@@ -1107,51 +1130,51 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     }
     ######################
     ###   update beta  ###
-    ###################### 
+    ######################
     # update beta (intercept only model)
     
     pro_beta1=rnorm(1,beta1,0.02)
     MHrate1=sum(-E1*exp(pro_beta1*x1+theta[u][1:n])+y1*(pro_beta1*x1+theta[u][1:n]))-
-      sum(-E1*exp(beta1*x1+theta[u][1:n])+y1*(beta1*x1+theta[u][1:n]))  
+      sum(-E1*exp(beta1*x1+theta[u][1:n])+y1*(beta1*x1+theta[u][1:n]))
     
     if(runif(1,0,1)&lt;exp(MHrate1)){
       beta1&lt;-pro_beta1
       acceptbeta1=acceptbeta1+1
-    } 
+    }
     
-    pro_beta2=rnorm(1,beta2,0.05)
+    pro_beta2=rnorm(1,beta2,0.16)
     MHrate2=sum(-E2*exp(pro_beta2*x2+theta[u][(n+1):(2*n)])+y2*(pro_beta2*x2+theta[u][(n+1):(2*n)]))-
-      sum(-E2*exp(beta2*x2+theta[u][(n+1):(2*n)])+y2*(beta2*x2+theta[u][(n+1):(2*n)]))  
+      sum(-E2*exp(beta2*x2+theta[u][(n+1):(2*n)])+y2*(beta2*x2+theta[u][(n+1):(2*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate2)){
       beta2&lt;-pro_beta2
       acceptbeta2=acceptbeta2+1
-    } 
+    }
     
     pro_beta3=rnorm(1,beta3,0.05)
     MHrate3=sum(-E3*exp(pro_beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(pro_beta3*x3+theta[u][(2*n+1):(3*n)]))-
-      sum(-E3*exp(beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(beta3*x3+theta[u][(2*n+1):(3*n)]))  
+      sum(-E3*exp(beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(beta3*x3+theta[u][(2*n+1):(3*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate3)){
       beta3&lt;-pro_beta3
       acceptbeta3=acceptbeta3+1
-    } 
+    }
     
     pro_beta4=rnorm(1,beta4,0.02)
     MHrate4=sum(-E4*exp(pro_beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(pro_beta4*x4+theta[u][(3*n+1):(4*n)]))-
-      sum(-E4*exp(beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(beta4*x4+theta[u][(3*n+1):(4*n)]))  
+      sum(-E4*exp(beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(beta4*x4+theta[u][(3*n+1):(4*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate4)){
       beta4&lt;-pro_beta4
       acceptbeta4=acceptbeta4+1
-    } 
+    }
     
     beta &lt;- c(beta1, beta2, beta3, beta4)
     
     
     #########################
     ###   update theta    ###
-    ######################### 
+    #########################
     
     u1 = u[1:n]
     u2 = u[(n+1):(2*n)]
@@ -1174,7 +1197,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
         if(runif(1,0,1)&lt;exp(MHrate)){
           theta[j]&lt;-pro_theta
           accepttheta=accepttheta+1
-        } 
+        }
       }
     }
     
@@ -1182,18 +1205,28 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     
     ######################
     ###   update r     ###
-    ###################### 
-  
+    ######################
+    
+    #pro_r=t(rmvnorm(1,r,sigma=covcar2,method=&quot;chol&quot;))
+    
+    
+    #tauvec = c(rep(taue1, n), rep(taue2, n), rep(taue3, n), rep(taue4, n))
+    
+    #pro_r = rmvnorm(1, r, 0.01*diag(nq))
     
     for (k in 1:nq){
       pro_r=r;pro_Fr=F_r;pro_u=u
       pro_r[k]=rnorm(1,r[k],1.8)
-      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))         
+      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))
       pro_u[k]=makeu(pro_Fr[k],probs)
       
       MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[pro_u[k]]),log=T)-
         dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[u[k]]),log=T)
-          if(runif(1,0,1)&lt;exp(MH)){
+      #MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[pro_u[1:n]],sigma=1/taue1*diag(n),log=T)+
+      # dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[pro_u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)-
+      #dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[u[1:n]],sigma=1/taue1*diag(n),log=T)-
+      #dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)
+      if(runif(1,0,1)&lt;exp(MH)){
         r[k]=pro_r[k]
         F_r[k]=pro_Fr[k]
         u[k]=pro_u[k]
@@ -1204,13 +1237,16 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     
     ######################
     ###   update   v   ###
-    ###################### 
+    ######################
     
+    
+    #pro_v=v
     for (j in 1:n.atoms){
+      #0.9
       pro_v=v
       pro_v[j]&lt;-rnorm(1,v[j],0.06)
       while (pro_v[j]&lt;0 || pro_v[j]&gt;1) {pro_v[j]&lt;-rnorm(1,v[j],0.06)}
-    
+      #if(pro_v[j]&gt;0 &amp; pro_v[j]&lt;1){
       pro_probs=makeprobs(pro_v)
       pro_u=makeu(F_r,pro_probs)
       
@@ -1222,14 +1258,15 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
         v[j]=pro_v[j]
         probs=pro_probs
         u=pro_u
-        acceptv=acceptv+1   
+        acceptv=acceptv+1
       }
+      # }
     }
     
     
     ######################
     ###   update taus  ###
-    ###################### 
+    ######################
     
     
     taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d2)
@@ -1237,7 +1274,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     
     ######################
     ###   update rho  ###
-    ###################### 
+    ######################
     
     
     pro_eta1 = rnorm(1, eta[1], 0.4)
@@ -1256,9 +1293,9 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     pro_invQ = as.matrix(bdiag(bdiag(pro_invQ1, pro_invQ2), bdiag(pro_invQ3, pro_invQ4)))
     pro_Vr = kprod %*% pro_invQ %*% t(kprod)
     
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) +
       log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) +
-      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) - 
+      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2]) -
       log(rho[3]) - log(1-rho[3]) - log(rho[4]) - log(1-rho[4])
     
@@ -1266,18 +1303,19 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
       eta = pro_eta
       rho = pro_rho
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptrho=acceptrho+1 
+      acceptrho=acceptrho+1
     }
     
     ######################
     ###   update A  ###
-    ###################### 
-
+    ######################
+    #0.06
     pro_A = matrix(0, q, q)
     for(i in 1:q){
       for(j in 1:i){
         if(j == i){
           pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.04))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
         }else{
           pro_A[i, j] = rnorm(1, A[i, j], 0.03)
         }
@@ -1298,19 +1336,21 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     
     lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
     pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - lpA
     
     if(runif(1,0,1)&lt;exp(MH)){
       A = pro_A
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptA=acceptA+1 
+      acceptA=acceptA+1
     }
     
-
+    #kprod = kronecker(A, diag(n))
+    #Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
+    
     ######################
     ### record samples ###
-    ###################### 
+    ######################
     
     keeptheta[iter,] = theta
     keepphi[iter,] = theta[u]
@@ -1328,7 +1368,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3
     keepr[iter,]=r
     keepFr[iter,]=F_r
     
-    #   cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acceptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
+    #    cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acceptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
     
   }
   
@@ -1464,10 +1504,10 @@ lines(FDR_est4,type=&quot;l&quot;, lty = 4)
 legend(&quot;topleft&quot;, legend=c(&quot;Lung&quot;, &quot;Esophageal&quot;, &quot;Layrnx&quot;, &quot;Colorectal&quot;),
        lty=1:4, cex=0.7)</code></pre>
 </div>
-<div id="b.-table-3-names-of-adjacent-counties-that-have-significant-boundary-effect-for-each-cancer-when-delta-0.025" class="section level7">
-<p class="heading">b. Table 3: Names of adjacent counties that have significant boundary effect for each cancer when <span class="math inline">\(\delta = 0.025\)</span></p>
-<pre class="r"><code># Set threshold for FDR: 0.025
-alpha_n = 0.025
+<div id="b.-table-3-names-of-adjacent-counties-that-have-significant-boundary-effect-for-each-cancer-when-delta-0.05" class="section level7">
+<p class="heading">b. Table 3: Names of adjacent counties that have significant boundary effect for each cancer when <span class="math inline">\(\delta = 0.05\)</span></p>
+<pre class="r"><code># Set threshold for FDR: 0.05
+alpha_n = 0.05
 T1 = sum(FDR_est1&lt;=alpha_n)
 T2 = sum(FDR_est2&lt;=alpha_n)
 T3 = sum(FDR_est3&lt;=alpha_n)
@@ -1486,13 +1526,13 @@ name_diff2
 name_diff3
 # Colorectal
 name_diff4</code></pre>
-<p>Number <span class="math inline">\(1-61\)</span> for lung cancer, <span class="math inline">\(1-26\)</span> for esophageal cancer and <span class="math inline">\(1-22\)</span> for colorectal cancer are ranked by initial letters with <span class="math inline">\(P(\phi_{id} \neq \phi_{jd} | y) = 1\)</span>.</p>
+<p>Number <span class="math inline">\(1-35\)</span> for lung cancer, <span class="math inline">\(1-4\)</span> for esophageal cancer and <span class="math inline">\(1-12\)</span> for colorectal cancer are ranked by initial letters with <span class="math inline">\(P(\phi_{id} \neq \phi_{jd} | y) = 1\)</span>.</p>
 </div>
 <div id="c.-difference-boundary-detection" class="section level7">
 <p class="heading">c. Difference boundary detection</p>
-<p>By setting threshold for FDR as <span class="math inline">\(0.025\)</span>, we get difference boundaries detected for each cancer individually.</p>
-<p>Figure 7 (a): Difference boundaries (highlighted in red) detected by MAGAR in SIR map for four cancers individually when <span class="math inline">\(\delta = 0.025\)</span>.</p>
-<pre class="r"><code># Difference boundary for each cancer with FDR &lt;= 0.025
+<p>By setting threshold for FDR as <span class="math inline">\(0.05\)</span>, we get difference boundaries detected for each cancer individually.</p>
+<p>Figure 7 (a): Difference boundaries (highlighted in red) detected by MAGAR in SIR map for four cancers individually when <span class="math inline">\(\delta = 0.05\)</span>.</p>
+<pre class="r"><code># Difference boundary for each cancer with FDR &lt;= 0.05
 est_diff1 &lt;- as.numeric(pvij1 &gt;= threshold1[T1])
 
 est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
@@ -1502,70 +1542,91 @@ est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
 # Lung cancer
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Esophageal cancer
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Larynx cancer
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Colorectal cancer
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -1698,8 +1759,8 @@ for(i in 1:length(threshold1)){
   FDR_estc34[i] &lt;- sum((1-pvijc34) * est_diffc34)  / sum(est_diffc34)
 }</code></pre>
 <p>Use the same threshold as above and identify shared boundaries</p>
-<p>Figure 8: Shared difference boundaries (highlighted in red) detected by MDAGAR for each pair of cancers in SIR map when <span class="math inline">\(\delta = 0.025\)</span>.</p>
-<pre class="r"><code>alpha_nc = 0.025
+<p>Figure 8: Shared difference boundaries (highlighted in red) detected by MDAGAR for each pair of cancers in SIR map when <span class="math inline">\(\delta = 0.05\)</span>.</p>
+<pre class="r"><code>alpha_nc = 0.05
 T12c = sum(FDR_estc12&lt;=alpha_nc)
 T13c = sum(FDR_estc13&lt;=alpha_nc)
 T14c = sum(FDR_estc14&lt;=alpha_nc)
@@ -1726,103 +1787,111 @@ neighbor_list_diffc24 &lt;- neighbor_list0[est_diffc24 == 1, ]
 est_diffc34 &lt;- as.numeric(pvijc34 &gt;= thresholdc34[T34c])
 neighbor_list_diffc34 &lt;- neighbor_list0[est_diffc34 == 1, ]
 
+ch_edge12 &lt;- pvijc12[est_diffc12==1]
 edge_plotc12 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc12==1)){
-  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc12[i]- min(ch_edge12))/(max(ch_edge12) - min(ch_edge12)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Esophageal (T = &quot;, T12c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge13 &lt;- pvijc13[est_diffc13==1]
 edge_plotc13 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc13==1)){
-  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc13[i]- min(ch_edge13))/(max(ch_edge13) - min(ch_edge13)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Layrnx (T = &quot;, T13c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge14 &lt;- pvijc14[est_diffc14==1]
 edge_plotc14 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc14==1)){
-  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc14[i]- min(ch_edge14))/(max(ch_edge14) - min(ch_edge14)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Colorectal (T = &quot;, T14c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge23 &lt;- pvijc23[est_diffc23==1]
 edge_plotc23 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc23==1)){
-  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc23[i]- min(ch_edge23))/(max(ch_edge23) - min(ch_edge23)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Layrnx (T = &quot;, T23c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge24 &lt;- pvijc24[est_diffc24==1]
 edge_plotc24 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc24==1)){
-  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc24[i]- min(ch_edge24))/(max(ch_edge24) - min(ch_edge24)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Colorectal (T = &quot;, T24c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge34 &lt;- pvijc34[est_diffc34==1]
 edge_plotc34 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc34==1)){
-  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc34[i]- min(ch_edge34))/(max(ch_edge34) - min(ch_edge34)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Larynx, Colorectal (T = &quot;, T34c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -1960,8 +2029,8 @@ for(i in 1:length(threshold1)){
   FDR_est34[i] &lt;- sum((1-pvij34) * est_diff34)  / sum(est_diff34)
 }</code></pre>
 <p>Use the same threshold as above and identify cross-disease boundaries</p>
-<p>Figure 9: Mutual cross-cancer difference boundaries (highlighted in red) detected by MDAGAR for each pair of cancers in SIR map when <span class="math inline">\(\delta = 0.025\)</span>.</p>
-<pre class="r"><code>alpha_n1 = 0.025
+<p>Figure 9: Mutual cross-cancer difference boundaries (highlighted in red) detected by MDAGAR for each pair of cancers in SIR map when <span class="math inline">\(\delta = 0.05\)</span>.</p>
+<pre class="r"><code>alpha_n1 = 0.05
 T12=sum(FDR_est12&lt;=alpha_n1)
 T13=sum(FDR_est13&lt;=alpha_n1)
 T14=sum(FDR_est14&lt;=alpha_n1)
@@ -1976,99 +2045,111 @@ est_diff23 &lt;- as.numeric(pvij23 &gt;= threshold23[T23])
 est_diff24 &lt;- as.numeric(pvij24 &gt;= threshold24[T24])
 est_diff34 &lt;- as.numeric(pvij34 &gt;= threshold34[T34])
 
+ch_edge12 &lt;- pvij12[which(est_diff12 == 1)]
 edge_plot12 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff12==1)){
-  edge_plot12 = edge_plot12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot12 = edge_plot12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij12[i]- min(ch_edge12))/(max(ch_edge12) - min(ch_edge12)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung vs. Esophageal (T = &quot;, T12, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge13 &lt;- pvij13[which(est_diff13 == 1)]
 edge_plot13 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff13==1)){
-  edge_plot13 = edge_plot13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot13 = edge_plot13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij13[i]- min(ch_edge13))/(max(ch_edge13) - min(ch_edge13)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung vs. Layrnx (T = &quot;, T13, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge14 &lt;- pvij14[which(est_diff14 == 1)]
 edge_plot14 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff14==1)){
-  edge_plot14 = edge_plot14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot14 = edge_plot14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij14[i]- min(ch_edge14))/(max(ch_edge14) - min(ch_edge14)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung vs. Colorectal (T = &quot;, T14, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge23 &lt;- pvij23[which(est_diff23 == 1)]
 edge_plot23 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff23==1)){
-  edge_plot23 = edge_plot23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot23 = edge_plot23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij23[i]- min(ch_edge23))/(max(ch_edge23) - min(ch_edge23)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal vs. Layrnx (T = &quot;, T23, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge24 &lt;- pvij24[which(est_diff24 == 1)]
 edge_plot24 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff24==1)){
-  edge_plot24 = edge_plot24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot24 = edge_plot24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij24[i]- min(ch_edge24))/(max(ch_edge24) - min(ch_edge24)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal vs. Colorectal (T = &quot;, T24, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge34 &lt;- pvij34[which(est_diff34 == 1)]
 edge_plot34 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diff34==1)){
-  edge_plot34 = edge_plot34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot34 = edge_plot34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                        size = ((pvij34[i]- min(ch_edge34))/(max(ch_edge34) - min(ch_edge34)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Larynx vs. Colorectal (T = &quot;, T34, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -2142,21 +2223,21 @@ for(i in 1:n) D[i,i]=ni[i]
 
 # Metropolis within Gibbs Sampler for MCMC updating 
 
-ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3 = as.matrix(X3[,1]), x4 = as.matrix(X4[,1]), 
+ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1]), x3 = as.matrix(X3[,1]), x4 = as.matrix(X4[,1]),
                               X = X, E = E, Minc, alpha=1, q = 4, n.atoms=15, runs=10000, burn=1000){
   #y:       data
   #x:       covariates
   #n.atoms: number of atoms in the mixture dist.
   #theta:      the theta&#39;s (iid from baseline) in the model
   #alpha:     v~beta(1,alpha)
-  #u:       the index indicator of spatial random effect 
+  #u:       the index indicator of spatial random effect
   #rho:     sptatial autocorrelation parameter in DAGAR
-  #Minc:       0-1 adjacency matrix 
+  #Minc:       0-1 adjacency matrix
   #V_r:     covariance matrix of joint MDAGAR
   #Q:       presicion matrix of DAGAR
   #r:       random effects following DAGAR
   #F_r:     Marginal CDF of r
-  #taued:   presicion in Baseline of DP for disease d   
+  #taued:   presicion in Baseline of DP for disease d
   #taus:    precision for theta
   
   
@@ -2218,14 +2299,19 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
       }
     }
   }
+  #Sigma = A%*%t(A)
   
   invQ1 = solve(D - rho[1] * Minc)
   invQ2 = solve(D - rho[2] * Minc)
   invQ3 = solve(D - rho[3] * Minc)
   invQ4 = solve(D - rho[4] * Minc)
   
+  #f1 = rmvnorm(1, rep(0, n), invQ1)
+  #f2 = rmvnorm(1, rep(0, n), invQ2)
+  #f = c(f1, f2)
   kprod = kronecker(A, diag(n))
   invQ = as.matrix(bdiag(bdiag(invQ1, invQ2), bdiag(invQ3, invQ4)))
+  #r = kprod %*% f
   
   Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
   r = rmvnorm(1, rep(0, nq), Vr)
@@ -2243,16 +2329,18 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
   acceptbeta1 = acceptbeta2=acceptbeta3=acceptbeta4 = 0
   accepttheta = 0
   
+  #sumtp&lt;-summu&lt;-summu2&lt;-rep(0,n)
   count&lt;-afterburn&lt;-0
   burn = burn + 1
-  
+  #iter = 1
+  #runs = 1000
   for(iter in 1:runs){
     
-    if(iter == runs){
+    if(iter %% 100 == 0){
       print(iter)
-      print(acceptA/(iter-1)) 
+      print(acceptA/(iter-1))
       print(acceptr/nq/(iter-1))
-      print(acceptrho/(iter-1)) 
+      print(acceptrho/(iter-1))
       print(acceptv/n.atoms/(iter-1))
       print(accepttheta/n.atoms/(iter-1))
       print(acceptbeta1/(iter-1))
@@ -2262,51 +2350,51 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     }
     ######################
     ###   update beta  ###
-    ###################### 
+    ######################
     # update beta (intercept only model)
     
     pro_beta1=rnorm(1,beta1,0.02)
     MHrate1=sum(-E1*exp(pro_beta1*x1+theta[u][1:n])+y1*(pro_beta1*x1+theta[u][1:n]))-
-      sum(-E1*exp(beta1*x1+theta[u][1:n])+y1*(beta1*x1+theta[u][1:n]))  
+      sum(-E1*exp(beta1*x1+theta[u][1:n])+y1*(beta1*x1+theta[u][1:n]))
     
     if(runif(1,0,1)&lt;exp(MHrate1)){
       beta1&lt;-pro_beta1
       acceptbeta1=acceptbeta1+1
-    } 
+    }
     
     pro_beta2=rnorm(1,beta2,0.05)
     MHrate2=sum(-E2*exp(pro_beta2*x2+theta[u][(n+1):(2*n)])+y2*(pro_beta2*x2+theta[u][(n+1):(2*n)]))-
-      sum(-E2*exp(beta2*x2+theta[u][(n+1):(2*n)])+y2*(beta2*x2+theta[u][(n+1):(2*n)]))  
+      sum(-E2*exp(beta2*x2+theta[u][(n+1):(2*n)])+y2*(beta2*x2+theta[u][(n+1):(2*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate2)){
       beta2&lt;-pro_beta2
       acceptbeta2=acceptbeta2+1
-    } 
+    }
     
     pro_beta3=rnorm(1,beta3,0.05)
     MHrate3=sum(-E3*exp(pro_beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(pro_beta3*x3+theta[u][(2*n+1):(3*n)]))-
-      sum(-E3*exp(beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(beta3*x3+theta[u][(2*n+1):(3*n)]))  
+      sum(-E3*exp(beta3*x3+theta[u][(2*n+1):(3*n)])+y3*(beta3*x3+theta[u][(2*n+1):(3*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate3)){
       beta3&lt;-pro_beta3
       acceptbeta3=acceptbeta3+1
-    } 
+    }
     
     pro_beta4=rnorm(1,beta4,0.02)
     MHrate4=sum(-E4*exp(pro_beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(pro_beta4*x4+theta[u][(3*n+1):(4*n)]))-
-      sum(-E4*exp(beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(beta4*x4+theta[u][(3*n+1):(4*n)]))  
+      sum(-E4*exp(beta4*x4+theta[u][(3*n+1):(4*n)])+y4*(beta4*x4+theta[u][(3*n+1):(4*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate4)){
       beta4&lt;-pro_beta4
       acceptbeta4=acceptbeta4+1
-    } 
+    }
     
     beta &lt;- c(beta1, beta2, beta3, beta4)
     
     
     #########################
     ###   update theta    ###
-    ######################### 
+    #########################
     
     u1 = u[1:n]
     u2 = u[(n+1):(2*n)]
@@ -2329,7 +2417,7 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
         if(runif(1,0,1)&lt;exp(MHrate)){
           theta[j]&lt;-pro_theta
           accepttheta=accepttheta+1
-        } 
+        }
       }
     }
     
@@ -2337,16 +2425,27 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     
     ######################
     ###   update r     ###
-    ###################### 
+    ######################
+    
+    #pro_r=t(rmvnorm(1,r,sigma=covcar2,method=&quot;chol&quot;))
+    
+    
+    #tauvec = c(rep(taue1, n), rep(taue2, n), rep(taue3, n), rep(taue4, n))
+    
+    #pro_r = rmvnorm(1, r, 0.01*diag(nq))
     
     for (k in 1:nq){
       pro_r=r;pro_Fr=F_r;pro_u=u
       pro_r[k]=rnorm(1,r[k],1.7)
-      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))         
+      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))
       pro_u[k]=makeu(pro_Fr[k],probs)
       
       MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[pro_u[k]]),log=T)-
         dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[u[k]]),log=T)
+      #MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[pro_u[1:n]],sigma=1/taue1*diag(n),log=T)+
+      # dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[pro_u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)-
+      #dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[u[1:n]],sigma=1/taue1*diag(n),log=T)-
+      #dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)
       if(runif(1,0,1)&lt;exp(MH)){
         r[k]=pro_r[k]
         F_r[k]=pro_Fr[k]
@@ -2358,14 +2457,16 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     
     ######################
     ###   update   v   ###
-    ###################### 
+    ######################
     
+    
+    #pro_v=v
     for (j in 1:n.atoms){
-
+      #0.9
       pro_v=v
       pro_v[j]&lt;-rnorm(1,v[j],0.06)
       while (pro_v[j]&lt;0 || pro_v[j]&gt;1) {pro_v[j]&lt;-rnorm(1,v[j],0.06)}
-  
+      #if(pro_v[j]&gt;0 &amp; pro_v[j]&lt;1){
       pro_probs=makeprobs(pro_v)
       pro_u=makeu(F_r,pro_probs)
       
@@ -2377,7 +2478,7 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
         v[j]=pro_v[j]
         probs=pro_probs
         u=pro_u
-        acceptv=acceptv+1   
+        acceptv=acceptv+1
       }
       # }
     }
@@ -2385,7 +2486,7 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     
     ######################
     ###   update taus  ###
-    ###################### 
+    ######################
     
     
     taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d2)
@@ -2393,7 +2494,7 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     
     ######################
     ###   update rho  ###
-    ###################### 
+    ######################
     
     
     pro_eta1 = rnorm(1, eta[1], 1.1)
@@ -2412,9 +2513,9 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     pro_invQ = as.matrix(bdiag(bdiag(pro_invQ1, pro_invQ2), bdiag(pro_invQ3, pro_invQ4)))
     pro_Vr = kprod %*% pro_invQ %*% t(kprod)
     
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) +
       log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) +
-      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) - 
+      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2]) -
       log(rho[3]) - log(1-rho[3]) - log(rho[4]) - log(1-rho[4])
     
@@ -2422,18 +2523,19 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
       eta = pro_eta
       rho = pro_rho
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptrho=acceptrho+1 
+      acceptrho=acceptrho+1
     }
     
     ######################
     ###   update A  ###
-    ###################### 
-
+    ######################
+    #0.06
     pro_A = matrix(0, q, q)
     for(i in 1:q){
       for(j in 1:i){
         if(j == i){
           pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.05))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
         }else{
           pro_A[i, j] = rnorm(1, A[i, j], 0.05)
         }
@@ -2454,19 +2556,21 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     
     lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
     pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - lpA
     
     if(runif(1,0,1)&lt;exp(MH)){
       A = pro_A
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptA=acceptA+1 
+      acceptA=acceptA+1
     }
     
+    #kprod = kronecker(A, diag(n))
+    #Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
     
     ######################
     ### record samples ###
-    ###################### 
+    ######################
     
     keeptheta[iter,] = theta
     keepphi[iter,] = theta[u]
@@ -2484,7 +2588,7 @@ ARDP_joint_diff_car&lt;-function(y=Y, x1=as.matrix(X1[,1]), x2=as.matrix(X2[,1])
     keepr[iter,]=r
     keepFr[iter,]=F_r
     
-    #   cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acceptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
+    #    cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acceptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
     
   }
   
@@ -2605,10 +2709,10 @@ lines(FDR_est4,type=&quot;l&quot;, lty = 4)
 legend(&quot;topleft&quot;, legend=c(&quot;Lung&quot;, &quot;Esophageal&quot;, &quot;Layrnx&quot;, &quot;Colorectal&quot;),
        lty=1:4, cex=0.7)</code></pre>
 </div>
-<div id="b.-names-of-adjacent-counties-that-have-significant-boundary-effects-from-the-mcar-model-for-each-cancer-when-delta-0.025" class="section level7">
-<p class="heading">b. Names of adjacent counties that have significant boundary effects from the MCAR model for each cancer when <span class="math inline">\(\delta = 0.025\)</span></p>
+<div id="b.-names-of-adjacent-counties-that-have-significant-boundary-effects-from-the-mcar-model-for-each-cancer-when-delta-0.05" class="section level7">
+<p class="heading">b. Names of adjacent counties that have significant boundary effects from the MCAR model for each cancer when <span class="math inline">\(\delta = 0.05\)</span></p>
 <pre class="r"><code># Set threshold for FDR: 0.025
-alpha_n = 0.025
+alpha_n = 0.05
 T1 = sum(FDR_est1&lt;=alpha_n)
 T2 = sum(FDR_est2&lt;=alpha_n)
 T3 = sum(FDR_est3&lt;=alpha_n)
@@ -2621,9 +2725,9 @@ name_diff4 &lt;- names(pvij4[order(pvij4,decreasing = T)][1:T4])</code></pre>
 </div>
 <div id="c.-difference-boundary-detection-1" class="section level7">
 <p class="heading">c. Difference boundary detection</p>
-<p>By setting FDR threshold the same as MDAGAR (<span class="math inline">\(0.025\)</span>), we get difference boundaries detected for each cancer individually.</p>
-<p>Figure 7 (b): Difference boundaries (highlighted in red) detected by MCAR in SIR map for four cancers individually when <span class="math inline">\(\delta = 0.025\)</span>.</p>
-<pre class="r"><code># Difference boundary for each cancer with FDR &lt;= 0.025
+<p>By setting FDR threshold the same as MDAGAR (<span class="math inline">\(0.05\)</span>), we get difference boundaries detected for each cancer individually.</p>
+<p>Figure 7 (b): Difference boundaries (highlighted in red) detected by MCAR in SIR map for four cancers individually when <span class="math inline">\(\delta = 0.05\)</span>.</p>
+<pre class="r"><code># Difference boundary for each cancer with FDR &lt;= 0.05
 est_diff1 &lt;- as.numeric(pvij1 &gt;= threshold1[T1])
 
 est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
@@ -2633,70 +2737,91 @@ est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
 # Lung cancer
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Esophageal cancer
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Larynx cancer
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Colorectal cancer
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -3075,7 +3200,7 @@ legend(&quot;topleft&quot;, legend=c(&quot;Lung&quot;, &quot;Esophageal&quot;, &
 <div id="b.-difference-boundary-detection" class="section level7">
 <p class="heading">b. Difference boundary detection</p>
 <p>By setting FDR threshold as <span class="math inline">\(0.1\)</span>, we get difference boundaries detected for each cancer individually.</p>
-<pre class="r"><code># Set threshold for FDR: 0.025
+<pre class="r"><code># Set threshold for FDR: 0.1
 alpha_n = 0.1
 T1 = sum(FDR_est1&lt;=alpha_n)
 T2 = sum(FDR_est2&lt;=alpha_n)
@@ -3084,7 +3209,6 @@ T4 = sum(FDR_est4&lt;=alpha_n)
 
 # Difference boundary for each cancer with FDR &lt;= 0.025
 est_diff1 &lt;- as.numeric(pvij1 &gt;= threshold1[T1])
-est_diff1_1 &lt;- as.numeric(pvij1 &gt;= threshold1[75])
 
 est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
 
@@ -3093,74 +3217,91 @@ est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
 # Lung cancer
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;dodgerblue&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-for(i in which(est_diff1_1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;)
-}
-
 # Esophageal cancer
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Larynx cancer
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Colorectal cancer
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -3319,103 +3460,111 @@ neighbor_list_diffc24 &lt;- neighbor_list0[est_diffc24 == 1, ]
 est_diffc34 &lt;- as.numeric(pvijc34 &gt;= thresholdc34[T34c])
 neighbor_list_diffc34 &lt;- neighbor_list0[est_diffc34 == 1, ]
 
+ch_edge12 &lt;- pvijc12[est_diffc12==1]
 edge_plotc12 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc12==1)){
-  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc12[i]- min(ch_edge12))/(max(ch_edge12) - min(ch_edge12)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Esophageal (T = &quot;, T12c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge13 &lt;- pvijc13[est_diffc13==1]
 edge_plotc13 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc13==1)){
-  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc13[i]- min(ch_edge13))/(max(ch_edge13) - min(ch_edge13)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Layrnx (T = &quot;, T13c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge14 &lt;- pvijc14[est_diffc14==1]
 edge_plotc14 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc14==1)){
-  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc14[i]- min(ch_edge14))/(max(ch_edge14) - min(ch_edge14)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Colorectal (T = &quot;, T14c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge23 &lt;- pvijc23[est_diffc23==1]
 edge_plotc23 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc23==1)){
-  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc23[i]- min(ch_edge23))/(max(ch_edge23) - min(ch_edge23)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Layrnx (T = &quot;, T23c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge24 &lt;- pvijc24[est_diffc24==1]
 edge_plotc24 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc24==1)){
-  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc24[i]- min(ch_edge24))/(max(ch_edge24) - min(ch_edge24)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Colorectal (T = &quot;, T24c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge34 &lt;- pvijc34[est_diffc34==1]
 edge_plotc34 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc34==1)){
-  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc34[i]- min(ch_edge34))/(max(ch_edge34) - min(ch_edge34)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Larynx, Colorectal (T = &quot;, T34c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
@@ -3719,74 +3868,93 @@ est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
 # Lung cancer
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
 # Esophageal cancer
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Larynx cancer
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
 # Colorectal cancer
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
-
 ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2) </code></pre>
 </div>
 </div>
@@ -3942,105 +4110,114 @@ neighbor_list_diffc24 &lt;- neighbor_list0[est_diffc24 == 1, ]
 est_diffc34 &lt;- as.numeric(pvijc34 &gt;= thresholdc34[T34c])
 neighbor_list_diffc34 &lt;- neighbor_list0[est_diffc34 == 1, ]
 
+ch_edge12 &lt;- pvijc12[est_diffc12==1]
 edge_plotc12 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc12==1)){
-  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc12[i]- min(ch_edge12))/(max(ch_edge12) - min(ch_edge12)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Esophageal (T = &quot;, T12c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge13 &lt;- pvijc13[est_diffc13==1]
 edge_plotc13 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc13==1)){
-  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc13[i]- min(ch_edge13))/(max(ch_edge13) - min(ch_edge13)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Layrnx (T = &quot;, T13c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge14 &lt;- pvijc14[est_diffc14==1]
 edge_plotc14 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc14==1)){
-  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc14[i]- min(ch_edge14))/(max(ch_edge14) - min(ch_edge14)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Lung, Colorectal (T = &quot;, T14c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge23 &lt;- pvijc23[est_diffc23==1]
 edge_plotc23 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc23==1)){
-  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc23[i]- min(ch_edge23))/(max(ch_edge23) - min(ch_edge23)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Layrnx (T = &quot;, T23c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge24 &lt;- pvijc24[est_diffc24==1]
 edge_plotc24 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc24==1)){
-  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc24[i]- min(ch_edge24))/(max(ch_edge24) - min(ch_edge24)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Esophageal, Colorectal (T = &quot;, T24c, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge34 &lt;- pvijc34[est_diffc34==1]
 edge_plotc34 &lt;- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = &quot;black&quot;,
                fill = &quot;white&quot;
   )
 for(i in which(est_diffc34==1)){
-  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                          size = ((pvijc34[i]- min(ch_edge34))/(max(ch_edge34) - min(ch_edge34)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=14, face=&quot;bold&quot;,hjust = 0.5)) +
     ggtitle(paste(&quot;Larynx, Colorectal (T = &quot;, T34c, &quot;)&quot;, sep=&quot;&quot;))
 }
+
 
 ggarrange(edge_plotc12, edge_plotc13, edge_plotc14, 
           edge_plotc23, edge_plotc24, edge_plotc34, nrow = 2, ncol = 3)</code></pre>
@@ -4110,7 +4287,7 @@ sum(D_CARind)</code></pre>
 <pre class="r"><code># Construct covariates matrix
 X = as.matrix(bdiag(bdiag(X1[,1:2], X2[,1:2]), bdiag(X3[,1:2],X4[,1:2])))
 
-ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[,1:2]), x3 = as.matrix(X3[,1:2]), x4 = as.matrix(X4[,1:2]), 
+RDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[,1:2]), x3 = as.matrix(X3[,1:2]), x4 = as.matrix(X4[,1:2]), 
                           X = X, E = E, Minc, alpha=1, q = 4, n.atoms=15, runs=10000, burn=1000){
   #y:       data
   #x:       covariates
@@ -4217,7 +4394,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
 
   for(iter in 1:runs){
     
-    if(iter == runs){
+    if(iter %% 100 == 0){
       print(iter)
       print(acceptA/(iter-1)) 
       print(acceptr/nq/(iter-1))
@@ -4234,7 +4411,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
     ###################### 
     # update beta (intercept only model)
     
-    pro_beta1=rmvnorm(1,beta1,0.000001*diag(ncol(x1)))
+    pro_beta1=rmvnorm(1,beta1,0.000002*diag(ncol(x1)))
     MHrate1=sum(-E1*exp(pro_beta1%*%t(x1)+theta[u][1:n])+y1*(pro_beta1%*%t(x1)+theta[u][1:n]))-
       sum(-E1*exp(beta1%*%t(x1)+theta[u][1:n])+y1*(beta1%*%t(x1)+theta[u][1:n]))  
     
@@ -4243,7 +4420,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
       acceptbeta1=acceptbeta1+1
     } 
     
-    pro_beta2=rmvnorm(1,beta2,0.000005*diag(ncol(x2)))
+    pro_beta2=rmvnorm(1,beta2,0.00001*diag(ncol(x2)))
     MHrate2=sum(-E2*exp(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)]))-
       sum(-E2*exp(beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(beta2%*%t(x2)+theta[u][(n+1):(2*n)]))  
     
@@ -4252,7 +4429,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
       acceptbeta2=acceptbeta2+1
     } 
     
-    pro_beta3=rmvnorm(1,beta3,0.00001*diag(ncol(x3)))
+    pro_beta3=rmvnorm(1,beta3,0.00004*diag(ncol(x3)))
     MHrate3=sum(-E3*exp(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))-
       sum(-E3*exp(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))  
     
@@ -4261,7 +4438,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
       acceptbeta3=acceptbeta3+1
     } 
     
-    pro_beta4=rmvnorm(1,beta4,0.0000005*diag(ncol(x4)))
+    pro_beta4=rmvnorm(1,beta4,0.000001*diag(ncol(x4)))
     MHrate4=sum(-E4*exp(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))-
       sum(-E4*exp(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))  
     
@@ -4406,6 +4583,7 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
       for(j in 1:i){
         if(j == i){
           pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.04))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
         }else{
           pro_A[i, j] = rnorm(1, A[i, j], 0.03)
         }
@@ -4457,6 +4635,8 @@ ARDP_joint_diff_smoke&lt;-function(y=Y, x1=as.matrix(X1[,1:2]), x2=as.matrix(X2[
     keepv[iter,]=v
     keepr[iter,]=r
     keepFr[iter,]=F_r
+    
+    #   cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acceptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
     
   }
   
@@ -4592,7 +4772,7 @@ for(i in 1:length(threshold1)){
 }
 
 # Use the same threshold as MDAGAR and identify difference boundary for each cancer individually
-alpha_n = 0.025
+alpha_n = 0.05
 T1 = sum(FDR_est1&lt;=alpha_n)
 T2 = sum(FDR_est2&lt;=alpha_n)
 T3 = sum(FDR_est3&lt;=alpha_n)
@@ -4603,95 +4783,130 @@ est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
 est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
-
 ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2) </code></pre>
 </div>
 </div>
-<div id="account-for-smoking-and-age" class="section level4">
-<h4>4.2 Account for smoking and age</h4>
+<div id="account-for-smoking-and-unemployed" class="section level4">
+<h4>4.2 Account for smoking and unemployed</h4>
 <pre class="r"><code># Construct covariates matrix
-X = as.matrix(bdiag(bdiag(X1[,c(1,2,4)], X2[,c(1,2,4)]), bdiag(X3[,c(1,2,4)],X4[,c(1,2,4)])))
+X = as.matrix(bdiag(bdiag(X1[,c(1,2,7)], X2[,c(1,2,7)]), bdiag(X3[,c(1,2,7)],X4[,c(1,2,7)])))
 
-ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,c(1,2,4)]), x3 = as.matrix(X3[,c(1,2,4)]), x4 = as.matrix(X4[,c(1,2,4)]), 
+ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,7)]), x2=as.matrix(X2[,c(1,2,7)]), x3 = as.matrix(X3[,c(1,2,7)]), x4 = as.matrix(X4[,c(1,2,7)]),
                           X = X, E = E, Minc, alpha=1, q = 4, n.atoms=15, runs=10000, burn=1000){
   #y:       data
   #x:       covariates
   #n.atoms: number of atoms in the mixture dist.
   #theta:      the theta&#39;s (iid from baseline) in the model
   #alpha:     v~beta(1,alpha)
-  #u:       the index indicator of spatial random effect 
+  #u:       the index indicator of spatial random effect
   #rho:     sptatial autocorrelation parameter in DAGAR
-  #Minc:       0-1 adjacency matrix 
+  #Minc:       0-1 adjacency matrix
   #V_r:     covariance matrix of joint MDAGAR
   #Q:       presicion matrix of DAGAR
   #r:       random effects following DAGAR
   #F_r:     Marginal CDF of r
-  #taued:   presicion in Baseline of DP for disease d   
+  #taued:   presicion in Baseline of DP for disease d
   #taus:    precision for theta
   
   
@@ -4793,9 +5008,9 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     if(iter %% 100 == 0){
       print(iter)
-      print(acceptA/(iter-1)) 
+      print(acceptA/(iter-1))
       print(acceptr/nq/(iter-1))
-      print(acceptrho/(iter-1)) 
+      print(acceptrho/(iter-1))
       print(acceptv/n.atoms/(iter-1))
       print(accepttheta/n.atoms/(iter-1))
       print(acceptbeta1/(iter-1))
@@ -4805,51 +5020,51 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     }
     ######################
     ###   update beta  ###
-    ###################### 
+    ######################
     # update beta (intercept only model)
     
-    pro_beta1=rmvnorm(1,beta1,0.0000005*diag(ncol(x1)))
+    pro_beta1=rmvnorm(1,beta1,0.0000009*diag(ncol(x1)))
     MHrate1=sum(-E1*exp(pro_beta1%*%t(x1)+theta[u][1:n])+y1*(pro_beta1%*%t(x1)+theta[u][1:n]))-
-      sum(-E1*exp(beta1%*%t(x1)+theta[u][1:n])+y1*(beta1%*%t(x1)+theta[u][1:n]))  
+      sum(-E1*exp(beta1%*%t(x1)+theta[u][1:n])+y1*(beta1%*%t(x1)+theta[u][1:n]))
     
     if(runif(1,0,1)&lt;exp(MHrate1)){
       beta1&lt;-pro_beta1
       acceptbeta1=acceptbeta1+1
-    } 
+    }
     
-    pro_beta2=rmvnorm(1,beta2,0.000005*diag(ncol(x2)))
+    pro_beta2=rmvnorm(1,beta2,0.000012*diag(ncol(x2)))
     MHrate2=sum(-E2*exp(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)]))-
-      sum(-E2*exp(beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(beta2%*%t(x2)+theta[u][(n+1):(2*n)]))  
+      sum(-E2*exp(beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(beta2%*%t(x2)+theta[u][(n+1):(2*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate2)){
       beta2&lt;-pro_beta2
       acceptbeta2=acceptbeta2+1
-    } 
+    }
     
-    pro_beta3=rmvnorm(1,beta3,0.000006*diag(ncol(x3)))
+    pro_beta3=rmvnorm(1,beta3,0.000022*diag(ncol(x3)))
     MHrate3=sum(-E3*exp(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))-
-      sum(-E3*exp(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))  
+      sum(-E3*exp(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate3)){
       beta3&lt;-pro_beta3
       acceptbeta3=acceptbeta3+1
-    } 
+    }
     
-    pro_beta4=rmvnorm(1,beta4,0.0000003*diag(ncol(x4)))
+    pro_beta4=rmvnorm(1,beta4,0.0000012*diag(ncol(x4)))
     MHrate4=sum(-E4*exp(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))-
-      sum(-E4*exp(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))  
+      sum(-E4*exp(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))
     
     if(runif(1,0,1)&lt;exp(MHrate4)){
       beta4&lt;-pro_beta4
       acceptbeta4=acceptbeta4+1
-    } 
+    }
     
     beta &lt;- c(beta1, beta2, beta3, beta4)
     
     
     #########################
     ###   update theta    ###
-    ######################### 
+    #########################
     
     u1 = u[1:n]
     u2 = u[(n+1):(2*n)]
@@ -4872,7 +5087,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
         if(runif(1,0,1)&lt;exp(MHrate)){
           theta[j]&lt;-pro_theta
           accepttheta=accepttheta+1
-        } 
+        }
       }
     }
     
@@ -4880,18 +5095,28 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     ######################
     ###   update r     ###
-    ###################### 
+    ######################
+    
+    #pro_r=t(rmvnorm(1,r,sigma=covcar2,method=&quot;chol&quot;))
+    
+    
+    #tauvec = c(rep(taue1, n), rep(taue2, n), rep(taue3, n), rep(taue4, n))
+    
+    #pro_r = rmvnorm(1, r, 0.01*diag(nq))
     
     for (k in 1:nq){
       
       pro_r=r;pro_Fr=F_r;pro_u=u
       pro_r[k]=rnorm(1,r[k],1.8)
-      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))         
+      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))
       pro_u[k]=makeu(pro_Fr[k],probs)
       
       MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[pro_u[k]]),log=T)-
         dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[u[k]]),log=T)
-    
+      #MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[pro_u[1:n]],sigma=1/taue1*diag(n),log=T)+
+      # dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[pro_u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)-
+      #dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dmvnorm(t(as.matrix(y1)),mean=as.vector(x1%*%t(beta1))+theta[u[1:n]],sigma=1/taue1*diag(n),log=T)-
+      #dmvnorm(t(as.matrix(y2)),mean=as.vector(x2%*%t(beta2))+theta[u[(n+1):(2*n)]],sigma=1/taue2*diag(n),log=T)
       if(runif(1,0,1)&lt;exp(MH)){
         r[k]=pro_r[k]
         F_r[k]=pro_Fr[k]
@@ -4903,7 +5128,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     ######################
     ###   update   v   ###
-    ###################### 
+    ######################
     
     
     #pro_v=v
@@ -4924,7 +5149,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
         v[j]=pro_v[j]
         probs=pro_probs
         u=pro_u
-        acceptv=acceptv+1   
+        acceptv=acceptv+1
       }
       # }
     }
@@ -4932,7 +5157,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     ######################
     ###   update taus  ###
-    ###################### 
+    ######################
     
     
     taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d2)
@@ -4940,7 +5165,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     ######################
     ###   update rho  ###
-    ###################### 
+    ######################
     
     
     pro_eta1 = rnorm(1, eta[1], 0.5)
@@ -4959,9 +5184,9 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     pro_invQ = as.matrix(bdiag(bdiag(pro_invQ1, pro_invQ2), bdiag(pro_invQ3, pro_invQ4)))
     pro_Vr = kprod %*% pro_invQ %*% t(kprod)
     
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) +
       log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) +
-      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) - 
+      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2]) -
       log(rho[3]) - log(1-rho[3]) - log(rho[4]) - log(1-rho[4])
     
@@ -4969,20 +5194,21 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
       eta = pro_eta
       rho = pro_rho
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptrho=acceptrho+1 
+      acceptrho=acceptrho+1
     }
     
     ######################
     ###   update A  ###
-    ###################### 
+    ######################
     #0.06
     pro_A = matrix(0, q, q)
     for(i in 1:q){
       for(j in 1:i){
         if(j == i){
-          pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.04))
+          pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.03))
+          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
         }else{
-          pro_A[i, j] = rnorm(1, A[i, j], 0.04)
+          pro_A[i, j] = rnorm(1, A[i, j], 0.03)
         }
       }
     }
@@ -5001,13 +5227,13 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
     pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
+    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA -
       dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - lpA
     
     if(runif(1,0,1)&lt;exp(MH)){
       A = pro_A
       Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptA=acceptA+1 
+      acceptA=acceptA+1
     }
     
     #kprod = kronecker(A, diag(n))
@@ -5015,7 +5241,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     
     ######################
     ### record samples ###
-    ###################### 
+    ######################
     
     keeptheta[iter,] = theta
     keepphi[iter,] = theta[u]
@@ -5033,6 +5259,8 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
     keepr[iter,]=r
     keepFr[iter,]=F_r
     
+    #    cat(&quot;iteration = &quot;, i, &quot;acceptance rate of r = &quot;, acceptr/(n*i),&quot;acc1eptance rate of v = &quot;,acceptv/(n.atoms*i), &quot;\n&quot;)
+    
   }
   
   list(beta=keepbeta[burn:runs,], A = keepA[burn:runs,],phi=keepphi[burn:runs,],theta=keeptheta[burn:runs,],u=keepu[burn:runs,],
@@ -5040,7 +5268,7 @@ ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,
        rho1=keeprho1[burn:runs], rho2=keeprho2[burn:runs], rho3=keeprho3[burn:runs], rho4=keeprho4[burn:runs])
 }
 set.seed(123)
-mcmc_samples=ARDP_joint_diff(y=Y, x1=as.matrix(X1[,c(1,2,4)]), x2=as.matrix(X2[,c(1,2,4)]), x3 = as.matrix(X3[,c(1,2,4)]), x4 = as.matrix(X4[,c(1,2,4)]), 
+mcmc_samples=ARDP_joint_diff(y=Y, x1=as.matrix(X1[,c(1,2,7)]), x2=as.matrix(X2[,c(1,2,7)]), x3 = as.matrix(X3[,c(1,2,7)]), x4 = as.matrix(X4[,c(1,2,7)]),
                              X = X, E=E, Minc, alpha=1, q = 4, n.atoms=15, runs=30000, burn=20000)
 
 
@@ -5168,7 +5396,7 @@ for(i in 1:length(threshold1)){
 }
 
 # Use the same threshold as MDAGAR and identify difference boundary for each cancer individually
-alpha_n = 0.025
+alpha_n = 0.05
 T1 = sum(FDR_est1&lt;=alpha_n)
 T2 = sum(FDR_est2&lt;=alpha_n)
 T3 = sum(FDR_est3&lt;=alpha_n)
@@ -5179,644 +5407,107 @@ est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
 est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
 est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
 
+ch_edge1 &lt;- pvij1[which(est_diff1 == 1)]
 edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
 }
 
+ch_edge2 &lt;- pvij2[which(est_diff2 == 1)]
 edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge3 &lt;- pvij3[which(est_diff3 == 1)]
 edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-
+ch_edge4 &lt;- pvij4[which(est_diff4 == 1)]
 edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, &quot;white&quot;, &quot;black&quot;),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
+               alpha = 0.6
+               #fill = &quot;white&quot;
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, &quot;dotted&quot;, &quot;solid&quot;)
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;,
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
+          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
 }
 
-ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2) </code></pre>
-</div>
-</div>
-<div id="account-for-smoking-age-and-unemployed" class="section level4">
-<h4>4.3 Account for smoking, age and unemployed</h4>
-<pre class="r"><code># Construct covariates matrix
-X = as.matrix(bdiag(bdiag(X1[,c(1,2,4,7)], X2[,c(1,2,4,7)]), bdiag(X3[,c(1,2,4,7)],X4[,c(1,2,4,7)])))
-
-ARDP_joint_diff&lt;-function(y=Y, x1=as.matrix(X1[,c(1,2,4,7)]), x2=as.matrix(X2[,c(1,2,4,7)]), x3 = as.matrix(X3[,c(1,2,4,7)]), x4 = as.matrix(X4[,c(1,2,4,7)]), 
-                          X = X, E = E, Minc, alpha=1, q = 4, n.atoms=15, runs=10000, burn=1000){
-  #y:       data
-  #x:       covariates
-  #n.atoms: number of atoms in the mixture dist.
-  #theta:      the theta&#39;s (iid from baseline) in the model
-  #alpha:     v~beta(1,alpha)
-  #u:       the index indicator of spatial random effect 
-  #rho:     sptatial autocorrelation parameter in DAGAR
-  #Minc:       0-1 adjacency matrix 
-  #V_r:     covariance matrix of joint MDAGAR
-  #Q:       presicion matrix of DAGAR
-  #r:       random effects following DAGAR
-  #F_r:     Marginal CDF of r
-  #taued:   presicion in Baseline of DP for disease d   
-  #taus:    precision for theta
-  
-  
-  
-  
-  nq&lt;-length(y)
-  n &lt;- nq / q
-  p&lt;-ncol(X)
-  y1 &lt;- y[1:n]
-  y2 &lt;- y[(n+1):(2*n)]
-  y3 &lt;- y[(2*n+1):(3*n)]
-  y4 &lt;- y[(3*n+1):(4*n)]
-  
-  E1 &lt;- E[1:n]
-  E2 &lt;- E[(n+1):(2*n)]
-  E3 &lt;- E[(2*n+1):(3*n)]
-  E4 &lt;- E[(3*n+1):(4*n)]
-  
-  sigmasq_beta = 10000
-  keepbeta=matrix(0,runs,p)
-  keepphi=matrix(0,runs,nq)
-  keeptheta=matrix(0,runs,n.atoms)
-  keepA=matrix(0,runs,10)
-  keepu=matrix(0,runs,nq)
-  keeprho1=keeprho2=keeprho3=keeprho4=keeptaus = rep(0,runs)
-  keepv=matrix(0,runs,n.atoms)
-  keepr=matrix(0,runs,nq)
-  keepFr=matrix(0,runs,nq)
-  
-  
-  #initial values
-  
-  theta=rep(0,n.atoms)
-  
-  beta1&lt;-rep(0,ncol(x1))
-  beta2&lt;-rep(0,ncol(x2))
-  beta3&lt;-rep(0,ncol(x3))
-  beta4&lt;-rep(0,ncol(x4))
-  beta = c(beta1, beta2, beta3, beta4)
-  
-  taus = 1
-  
-  c=2
-  d=0.1
-  d2=1
-  v&lt;-rep(.1,n.atoms)
-  probs=makeprobs(v)
-  
-  #A matrix
-  rho=c(0.5, 0.5, 0.5, 0.5)
-  eta = log(rho/(1-rho))
-  A = matrix(0, q, q)
-  for(i in 1:q){
-    for(j in 1:i){
-      if(j == i){
-        A[i, j] = exp(rnorm(1))
-      }else{
-        A[i, j] = rnorm(1)
-      }
-    }
-  }
-  #Sigma = A%*%t(A)
-  
-  Q = Dinv_new(Rho = rho, n, cn, ns, udnei, q)
-  invQ1 = solve(Q[[1]])
-  invQ2 = solve(Q[[2]])
-  invQ3 = solve(Q[[3]])
-  invQ4 = solve(Q[[4]])
-  
-  #f1 = rmvnorm(1, rep(0, n), invQ1)
-  #f2 = rmvnorm(1, rep(0, n), invQ2)
-  #f = c(f1, f2)
-  kprod = kronecker(A, diag(n))
-  invQ = as.matrix(bdiag(bdiag(invQ1, invQ2), bdiag(invQ3, invQ4)))
-  #r = kprod %*% f
-  
-  Vr = as.matrix(forceSymmetric(kprod %*% invQ %*% t(kprod)))
-  r = rmvnorm(1, rep(0, nq), Vr)
-  
-  
-  F_r=pnorm(r,0,sqrt(diag(Vr)))
-  u=makeu(F_r,probs)
-  phi &lt;- theta[u]
-  
-  nu = 2
-  R = 0.1 * diag(q)
-  
-  
-  acceptr=acceptv=acceptrho=acceptA=0
-  acceptbeta1 = acceptbeta2=acceptbeta3=acceptbeta4 = 0
-  accepttheta = 0
-  
-  #sumtp&lt;-summu&lt;-summu2&lt;-rep(0,n)
-  count&lt;-afterburn&lt;-0
-  burn = burn + 1
-  #iter = 1
-  #runs = 1000
-  for(iter in 1:runs){
-    
-    if(iter %% 100 == 0){
-      print(iter)
-      print(acceptA/(iter-1)) 
-      print(acceptr/nq/(iter-1))
-      print(acceptrho/(iter-1)) 
-      print(acceptv/n.atoms/(iter-1))
-      print(accepttheta/n.atoms/(iter-1))
-      print(acceptbeta1/(iter-1))
-      print(acceptbeta2/(iter-1))
-      print(acceptbeta3/(iter-1))
-      print(acceptbeta4/(iter-1))
-    }
-    ######################
-    ###   update beta  ###
-    ###################### 
-    # update beta (intercept only model)
-    
-    pro_beta1=rmvnorm(1,beta1,0.0000005*diag(ncol(x1)))
-    MHrate1=sum(-E1*exp(pro_beta1%*%t(x1)+theta[u][1:n])+y1*(pro_beta1%*%t(x1)+theta[u][1:n]))-
-      sum(-E1*exp(beta1%*%t(x1)+theta[u][1:n])+y1*(beta1%*%t(x1)+theta[u][1:n]))  
-    
-    if(runif(1,0,1)&lt;exp(MHrate1)){
-      beta1&lt;-pro_beta1
-      acceptbeta1=acceptbeta1+1
-    } 
-    
-    pro_beta2=rmvnorm(1,beta2,0.000005*diag(ncol(x2)))
-    MHrate2=sum(-E2*exp(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(pro_beta2%*%t(x2)+theta[u][(n+1):(2*n)]))-
-      sum(-E2*exp(beta2%*%t(x2)+theta[u][(n+1):(2*n)])+y2*(beta2%*%t(x2)+theta[u][(n+1):(2*n)]))  
-    
-    if(runif(1,0,1)&lt;exp(MHrate2)){
-      beta2&lt;-pro_beta2
-      acceptbeta2=acceptbeta2+1
-    } 
-    
-    pro_beta3=rmvnorm(1,beta3,0.000006*diag(ncol(x3)))
-    MHrate3=sum(-E3*exp(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(pro_beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))-
-      sum(-E3*exp(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)])+y3*(beta3%*%t(x3)+theta[u][(2*n+1):(3*n)]))  
-    
-    if(runif(1,0,1)&lt;exp(MHrate3)){
-      beta3&lt;-pro_beta3
-      acceptbeta3=acceptbeta3+1
-    } 
-    
-    pro_beta4=rmvnorm(1,beta4,0.0000003*diag(ncol(x4)))
-    MHrate4=sum(-E4*exp(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(pro_beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))-
-      sum(-E4*exp(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)])+y4*(beta4%*%t(x4)+theta[u][(3*n+1):(4*n)]))  
-    
-    if(runif(1,0,1)&lt;exp(MHrate4)){
-      beta4&lt;-pro_beta4
-      acceptbeta4=acceptbeta4+1
-    } 
-    
-    beta &lt;- c(beta1, beta2, beta3, beta4)
-    
-    
-    #########################
-    ###   update theta    ###
-    ######################### 
-    
-    u1 = u[1:n]
-    u2 = u[(n+1):(2*n)]
-    u3 = u[(2*n+1):(3*n)]
-    u4 = u[(3*n+1):(4*n)]
-    
-    
-    
-    for (j in 1:n.atoms){
-      
-      count[j]=sum(u==j)
-      
-      if (count[j]==0){
-        theta[j]=rnorm(1,0,sqrt(1/taus))
-      }else{
-        pro_theta=rnorm(1,theta[j],0.06)
-        
-        MHrate&lt;-sum(-(E[u==j])*exp(X[u==j,] %*% beta+pro_theta)+(y[u==j])*(X[u==j,] %*% beta+pro_theta))-taus/2*pro_theta^2-
-          sum(-(E[u==j])*exp(X[u==j,] %*% beta+theta[j])+(y[u==j])*(X[u==j,] %*% beta+theta[j]))+taus/2*theta[j]^2
-        if(runif(1,0,1)&lt;exp(MHrate)){
-          theta[j]&lt;-pro_theta
-          accepttheta=accepttheta+1
-        } 
-      }
-    }
-    
-    
-    
-    ######################
-    ###   update r     ###
-    ###################### 
-    
-    for (k in 1:nq){
-      
-      pro_r=r;pro_Fr=F_r;pro_u=u
-      pro_r[k]=rnorm(1,r[k],1.8)
-      pro_Fr[k]=pnorm(pro_r[k],0,sqrt(Vr[k,k]))         
-      pro_u[k]=makeu(pro_Fr[k],probs)
-      
-      MH=dmvnorm(pro_r,mean=rep(0, nq),sigma=Vr,log=T)+dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[pro_u[k]]),log=T)-
-        dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T)-dpois(y[k],E[k]*exp(as.numeric(X[k,]%*%beta)+theta[u[k]]),log=T)
-   
-      if(runif(1,0,1)&lt;exp(MH)){
-        r[k]=pro_r[k]
-        F_r[k]=pro_Fr[k]
-        u[k]=pro_u[k]
-        acceptr=acceptr+1
-      }
-    }
-    
-    
-    ######################
-    ###   update   v   ###
-    ###################### 
-    
-    
-    #pro_v=v
-    for (j in 1:n.atoms){
-      #0.9
-      pro_v=v
-      pro_v[j]&lt;-rnorm(1,v[j],0.05)
-      while (pro_v[j]&lt;0 || pro_v[j]&gt;1) {pro_v[j]&lt;-rnorm(1,v[j],0.05)}
-      #if(pro_v[j]&gt;0 &amp; pro_v[j]&lt;1){
-      pro_probs=makeprobs(pro_v)
-      pro_u=makeu(F_r,pro_probs)
-      
-      MH=log(dbeta(pro_v[j],1,alpha))+sum(dpois(y,E*exp(X%*%beta+theta[pro_u]),log=T))-
-        log(dbeta(v[j],1,alpha))-sum(dpois(y,E*exp(X%*%beta+theta[u]),log=T))
-      
-      
-      if(runif(1,0,1)&lt;exp(MH)){
-        v[j]=pro_v[j]
-        probs=pro_probs
-        u=pro_u
-        acceptv=acceptv+1   
-      }
-      # }
-    }
-    
-    
-    ######################
-    ###   update taus  ###
-    ###################### 
-    
-    
-    taus=rgamma(1,shape=1/2*n.atoms+c,rate=sum(theta^2)/2+d2)
-    
-    
-    ######################
-    ###   update rho  ###
-    ###################### 
-    
-    
-    pro_eta1 = rnorm(1, eta[1], 0.5)
-    pro_eta2 = rnorm(1, eta[2], 0.5)
-    pro_eta3 = rnorm(1, eta[3], 0.5)
-    pro_eta4 = rnorm(1, eta[4], 0.5)
-    pro_eta = c(pro_eta1, pro_eta2, pro_eta3, pro_eta4)
-    pro_rho = exp(pro_eta)/(1+exp(pro_eta))
-    pro_Q = Dinv_new(Rho = pro_rho, n, cn, ns, udnei, q)
-    pro_invQ1 = solve(pro_Q[[1]])
-    pro_invQ2 = solve(pro_Q[[2]])
-    pro_invQ3 = solve(pro_Q[[3]])
-    pro_invQ4 = solve(pro_Q[[4]])
-    
-    kprod = kronecker(A, diag(n))
-    pro_invQ = as.matrix(bdiag(bdiag(pro_invQ1, pro_invQ2), bdiag(pro_invQ3, pro_invQ4)))
-    pro_Vr = kprod %*% pro_invQ %*% t(kprod)
-    
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + 
-      log(pro_rho[1]) + log(1-pro_rho[1]) + log(pro_rho[2]) + log(1-pro_rho[2]) +
-      log(pro_rho[3]) + log(1-pro_rho[3]) + log(pro_rho[4]) + log(1-pro_rho[4]) - 
-      dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - log(rho[1]) - log(1-rho[1]) - log(rho[2]) - log(1-rho[2]) -
-      log(rho[3]) - log(1-rho[3]) - log(rho[4]) - log(1-rho[4])
-    
-    if(runif(1,0,1)&lt;exp(MH)){
-      eta = pro_eta
-      rho = pro_rho
-      Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptrho=acceptrho+1 
-    }
-    
-    ######################
-    ###   update A  ###
-    ###################### 
-    #0.06
-    pro_A = matrix(0, q, q)
-    for(i in 1:q){
-      for(j in 1:i){
-        if(j == i){
-          pro_A[i, j] = exp(rnorm(1, log(A[i, j]), 0.04))
-          #pro_A[i, j] = rlnorm(1, log(A[i, j]), 0.1)
-        }else{
-          pro_A[i, j] = rnorm(1, A[i, j], 0.04)
-        }
-      }
-    }
-    
-    Q = Dinv_new(Rho = rho, n, cn, ns, udnei, q=4)
-    invQ1 = solve(Q[[1]])
-    invQ2 = solve(Q[[2]])
-    invQ3 = solve(Q[[3]])
-    invQ4 = solve(Q[[4]])
-    Sigma =  A %*% t(A)
-    
-    pro_kprod = kronecker(pro_A, diag(n))
-    invQ = as.matrix(bdiag(bdiag(invQ1, invQ2), bdiag(invQ3, invQ4)))
-    pro_Vr = pro_kprod %*% as.matrix(forceSymmetric(invQ)) %*% t(pro_kprod)
-    pro_Sigma =  pro_A %*% t(pro_A)
-    
-    lpA = -(nu+4)/2*logdet(Sigma) - 1/2*sum(diag(nu*R%*%solve(Sigma))) + log(Jacob_A(A)) + sum(log(diag(A)))
-    pro_lpA = -(nu+4)/2*logdet(pro_Sigma) - 1/2*sum(diag(nu*R%*%solve(pro_Sigma))) + log(Jacob_A(pro_A)) + sum(log(diag(pro_A)))
-    MH = dmvnorm(r,mean=rep(0, nq),sigma=as.matrix(forceSymmetric(pro_Vr)),log=T) + pro_lpA - 
-      dmvnorm(r,mean=rep(0, nq),sigma=Vr,log=T) - lpA
-    
-    if(runif(1,0,1)&lt;exp(MH)){
-      A = pro_A
-      Vr = as.matrix(forceSymmetric(pro_Vr))
-      acceptA=acceptA+1 
-    }
-    
-    ######################
-    ### record samples ###
-    ###################### 
-    
-    keeptheta[iter,] = theta
-    keepphi[iter,] = theta[u]
-    
-    keepA[iter,] = as.vector(A)[-c(5,9,10,13:15)]
-    
-    keepbeta[iter,]=beta
-    keeptaus[iter]=taus
-    keeprho1[iter]=rho[1]
-    keeprho2[iter]=rho[2]
-    keeprho3[iter]=rho[3]
-    keeprho4[iter]=rho[4]
-    keepu[iter,]=u
-    keepv[iter,]=v
-    keepr[iter,]=r
-    keepFr[iter,]=F_r
-    
-  }
-  
-  list(beta=keepbeta[burn:runs,], A = keepA[burn:runs,],phi=keepphi[burn:runs,],theta=keeptheta[burn:runs,],u=keepu[burn:runs,],
-       v=keepv[burn:runs,],r=keepr[burn:runs,],Fr=keepFr[burn:runs,], taus=keeptaus[burn:runs],
-       rho1=keeprho1[burn:runs], rho2=keeprho2[burn:runs], rho3=keeprho3[burn:runs], rho4=keeprho4[burn:runs])
-}
-set.seed(123)
-mcmc_samples=ARDP_joint_diff(y=Y, x1=as.matrix(X1[,c(1,2,4,7)]), x2=as.matrix(X2[,c(1,2,4,7)]), x3 = as.matrix(X3[,c(1,2,4,7)]), x4 = as.matrix(X4[,c(1,2,4,7)]), 
-                             X = X, E=E, Minc, alpha=1, q = 4, n.atoms=15, runs=30000, burn=20000)
-
-sample.mcmc = cbind(mcmc_samples$taus, mcmc_samples$rho1, mcmc_samples$rho2, mcmc_samples$rho3, mcmc_samples$rho4)</code></pre>
-<div id="coefficients-covariates-slopes-estimates-in-table-5-2" class="section level5">
-<h5>4.3.1 Coefficients (covariates slopes) estimates in Table 5</h5>
-<pre class="r"><code>#Summary function
-mysummary = function(invector) {
-  c(mean(invector), quantile(invector, .025), quantile(invector,.975))
-}
-#Coefficients
-cov_effect = round(t(apply(mcmc_samples$beta, 2, mysummary)),3)
-beta_est = paste(cov_effect[,1], &quot; (&quot;, cov_effect[,2], &quot;, &quot;, cov_effect[,3], &quot;)&quot;, sep=&quot;&quot;)
-beta_table = data.frame(t(matrix(beta_est, ncol = 4, byrow = TRUE)))
-colnames(beta_table) = c(&quot;Lung&quot;, &quot;Esophageal&quot;, &quot;Larynx&quot;, &quot;Colorectal&quot;)
-rownames(beta_table) = c(&quot;Intercept&quot;, &quot;Smoking&quot;, &quot;Age&quot;, &quot;Unemployed&quot;)
-kable(beta_table)
-
-# Estimates for $rho_d$
-round(mysummary(mcmc_samples$rho1), 3)
-round(mysummary(mcmc_samples$rho2), 3)
-round(mysummary(mcmc_samples$rho3), 3)
-round(mysummary(mcmc_samples$rho4), 3)</code></pre>
-</div>
-<div id="difference-boundaries-for-each-cancer-individually-2" class="section level5">
-<h5>4.3.2 Difference boundaries for each cancer individually</h5>
-<p>Figure 10 (c): Difference boundaries (highlighted in red) detected by MDAGAR after accounting for smoking, age and unemployed for four cancers</p>
-<pre class="r"><code>phis &lt;- mcmc_samples$phi
-phis1 &lt;- phis[,1:58][,order(final_perm)]
-phis2 &lt;- phis[,59:116][,order(final_perm)]
-phis3 &lt;- phis[,117:174][,order(final_perm)]
-phis4 &lt;- phis[,175:232][,order(final_perm)]
-phis_origin &lt;- cbind(phis1, phis2, phis3, phis4)
-
-vij_samples1 &lt;- t(apply(phis1, 1, function(x){
-  diff_b1 &lt;- NULL
-  for(i in 1:nrow(neighbor_list0)){
-    if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
-      diff_b1 &lt;- c(diff_b1, 1)
-    }else{
-      diff_b1 &lt;- c(diff_b1, 0)
-    }
-  }
-  return(diff_b1)
-}))
-
-
-
-vij_samples2 &lt;- t(apply(phis2, 1, function(x){
-  diff_b1 &lt;- NULL
-  for(i in 1:nrow(neighbor_list0)){
-    if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
-      diff_b1 &lt;- c(diff_b1, 1)
-    }else{
-      diff_b1 &lt;- c(diff_b1, 0)
-    }
-  }
-  return(diff_b1)
-}))
-
-vij_samples3 &lt;- t(apply(phis3, 1, function(x){
-  diff_b1 &lt;- NULL
-  for(i in 1:nrow(neighbor_list0)){
-    if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
-      diff_b1 &lt;- c(diff_b1, 1)
-    }else{
-      diff_b1 &lt;- c(diff_b1, 0)
-    }
-  }
-  return(diff_b1)
-}))
-
-
-
-vij_samples4 &lt;- t(apply(phis4, 1, function(x){
-  diff_b1 &lt;- NULL
-  for(i in 1:nrow(neighbor_list0)){
-    if(x[neighbor_list0[i,1]] != x[neighbor_list0[i,2]]){
-      diff_b1 &lt;- c(diff_b1, 1)
-    }else{
-      diff_b1 &lt;- c(diff_b1, 0)
-    }
-  }
-  return(diff_b1)
-}))
-
-#probabilities
-pvij1 &lt;- apply(vij_samples1, 2, mean)
-pvij2 &lt;- apply(vij_samples2, 2, mean)
-pvij3 &lt;- apply(vij_samples3, 2, mean)
-pvij4 &lt;- apply(vij_samples4, 2, mean)
-
-names(pvij1) &lt;- neighbor_name
-names(pvij2) &lt;- neighbor_name
-names(pvij3) &lt;- neighbor_name
-names(pvij4) &lt;- neighbor_name
-
-T_edge1 = seq(0, 135, 1)[-1]
-threshold1 = sort(pvij1, decreasing = TRUE)[T_edge1]
-threshold2 = sort(pvij2, decreasing = TRUE)[T_edge1]
-threshold3 = sort(pvij3, decreasing = TRUE)[T_edge1]
-threshold4 = sort(pvij4, decreasing = TRUE)[T_edge1]
-FDR_est1 &lt;- rep(0, length(T_edge1))
-FDR_est2 &lt;- rep(0, length(T_edge1))
-FDR_est3 &lt;- rep(0, length(T_edge1))
-FDR_est4 &lt;- rep(0, length(T_edge1))
-
-
-for(i in 1:length(threshold1)){
-  th1 &lt;- threshold1[i]
-  est_diff1 &lt;- as.numeric(pvij1 &gt;= th1)
-  FDR_est1[i] &lt;- sum((1-pvij1) * est_diff1)  / sum(est_diff1)
-  
-  th2 &lt;- threshold2[i]
-  est_diff2 &lt;- as.numeric(pvij2 &gt;= th2)
-  FDR_est2[i] &lt;- sum((1-pvij2) * est_diff2)  / sum(est_diff2)
-  
-  th3 &lt;- threshold3[i]
-  est_diff3 &lt;- as.numeric(pvij3 &gt;= th3)
-  FDR_est3[i] &lt;- sum((1-pvij3) * est_diff3)  / sum(est_diff3)
-  
-  th4 &lt;- threshold4[i]
-  est_diff4 &lt;- as.numeric(pvij4 &gt;= th4)
-  FDR_est4[i] &lt;- sum((1-pvij4) * est_diff4)  / sum(est_diff4)
-}
-
-# Use the same threshold as MDAGAR and identify difference boundary for each cancer individually
-alpha_n = 0.025
-T1 = sum(FDR_est1&lt;=alpha_n)
-T2 = sum(FDR_est2&lt;=alpha_n)
-T3 = sum(FDR_est3&lt;=alpha_n)
-T4 = sum(FDR_est4&lt;=alpha_n)
-
-est_diff1 &lt;- as.numeric(pvij1 &gt;= threshold1[T1])
-est_diff2 &lt;- as.numeric(pvij2 &gt;= threshold2[T2])
-est_diff3 &lt;- as.numeric(pvij3 &gt;= threshold3[T3])
-est_diff4 &lt;- as.numeric(pvij4 &gt;= threshold4[T4])
-
-edge_plot1 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
-               color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
-for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
-    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(paste(&quot;Lung (T = &quot;, T1, &quot;)&quot;, sep=&quot;&quot;))
-}
-
-edge_plot2 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
-               color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
-for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
-    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(paste(&quot;Esophageal (T = &quot;, T2, &quot;)&quot;, sep=&quot;&quot;))
-}
-
-
-edge_plot3 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
-               color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
-for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
-    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(paste(&quot;Larynx (T = &quot;, T3, &quot;)&quot;, sep=&quot;&quot;))
-}
-
-
-edge_plot4 &lt;- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
-               color = &quot;black&quot;,
-               fill = &quot;white&quot;
-  )
-for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = &quot;red&quot;) +
-    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-          panel.background = element_blank(), axis.line = element_blank(),
-          axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face=&quot;bold&quot;,hjust = 0.5)) + 
-    ggtitle(paste(&quot;Colorectal (T = &quot;, T4, &quot;)&quot;, sep=&quot;&quot;))
-}
 
 ggarrange(edge_plot1, edge_plot2, edge_plot3, edge_plot4, nrow = 2, ncol = 2) </code></pre>
 </div>

@@ -1027,18 +1027,18 @@ ARDP_joint_diff&lt;-function(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q = 2
 }
 
 T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
-spec1 &lt;- matrix(0, 30, length(T_edge))
-sens1 &lt;- matrix(0, 30, length(T_edge))
-spec2 &lt;- matrix(0, 30, length(T_edge))
-sens2 &lt;- matrix(0, 30, length(T_edge))
-spec12 &lt;- matrix(0, 30, length(T_edge))
-sens12 &lt;- matrix(0, 30, length(T_edge))
-spec21 &lt;- matrix(0, 30, length(T_edge))
-sens21 &lt;- matrix(0, 30, length(T_edge))
+spec1 &lt;- matrix(0, 50, length(T_edge))
+sens1 &lt;- matrix(0, 50, length(T_edge))
+spec2 &lt;- matrix(0, 50, length(T_edge))
+sens2 &lt;- matrix(0, 50, length(T_edge))
+spec12 &lt;- matrix(0, 50, length(T_edge))
+sens12 &lt;- matrix(0, 50, length(T_edge))
+spec21 &lt;- matrix(0, 50, length(T_edge))
+sens21 &lt;- matrix(0, 50, length(T_edge))
 mcmc_samples &lt;- list()
 
-# Simulate 30 datasets
-for(seed in 1:30){
+# Simulate 50 datasets
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)
@@ -1498,18 +1498,18 @@ ARDP_joint_diff_car&lt;-function(y=Y1, x1=Xo1, x2=Xo2, X = Xb1, Minc, alpha=1, q
 }
 
 T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
-spec1 &lt;- matrix(0, 30, length(T_edge))
-sens1 &lt;- matrix(0, 30, length(T_edge))
-spec2 &lt;- matrix(0, 30, length(T_edge))
-sens2 &lt;- matrix(0, 30, length(T_edge))
-spec12 &lt;- matrix(0, 30, length(T_edge))
-sens12 &lt;- matrix(0, 30, length(T_edge))
-spec21 &lt;- matrix(0, 30, length(T_edge))
-sens21 &lt;- matrix(0, 30, length(T_edge))
+spec1 &lt;- matrix(0, 50, length(T_edge))
+sens1 &lt;- matrix(0, 50, length(T_edge))
+spec2 &lt;- matrix(0, 50, length(T_edge))
+sens2 &lt;- matrix(0, 50, length(T_edge))
+spec12 &lt;- matrix(0, 50, length(T_edge))
+sens12 &lt;- matrix(0, 50, length(T_edge))
+spec21 &lt;- matrix(0, 50, length(T_edge))
+sens21 &lt;- matrix(0, 50, length(T_edge))
 mcmc_samples &lt;- list()
 
-# Simulate 30 datasets
-for(seed in 1:30){
+# Simulate 50 datasets
+for(seed in 1:50){
   print(seed)
   set.seed(seed)
   X1=cbind(1, rnorm(n_county))
@@ -1740,18 +1740,18 @@ cat(&quot;
     &quot;, fill = TRUE)
 sink()</code></pre>
 <pre class="r"><code>T_edge = c(60, 65, 70, 75, 80, 85, 90, 95) 
-spec1 &lt;- matrix(0, 30, length(T_edge))
-sens1 &lt;- matrix(0, 30, length(T_edge))
-spec2 &lt;- matrix(0, 30, length(T_edge))
-sens2 &lt;- matrix(0, 30, length(T_edge))
-spec12 &lt;- matrix(0, 30, length(T_edge))
-sens12 &lt;- matrix(0, 30, length(T_edge))
-spec21 &lt;- matrix(0, 30, length(T_edge))
-sens21 &lt;- matrix(0, 30, length(T_edge))
+spec1 &lt;- matrix(0, 50, length(T_edge))
+sens1 &lt;- matrix(0, 50, length(T_edge))
+spec2 &lt;- matrix(0, 50, length(T_edge))
+sens2 &lt;- matrix(0, 50, length(T_edge))
+spec12 &lt;- matrix(0, 50, length(T_edge))
+sens12 &lt;- matrix(0, 50, length(T_edge))
+spec21 &lt;- matrix(0, 50, length(T_edge))
+sens21 &lt;- matrix(0, 50, length(T_edge))
 mcmc_samples &lt;- list()
 
-# Simulate 30 datasets
-for(seed in 1:30){
+# Simulate 50 datasets
+for(seed in 1:50){
   print(seed)
   #seed=1
   set.seed(seed)
@@ -1947,18 +1947,18 @@ cat(&quot;
     &quot;, fill = TRUE)
 sink()</code></pre>
 <pre class="r"><code>T_edge = c(60, 65, 70, 75, 80, 85, 90, 95)
-spec1 &lt;- matrix(0, 30, length(T_edge))
-sens1 &lt;- matrix(0, 30, length(T_edge))
-spec2 &lt;- matrix(0, 30, length(T_edge))
-sens2 &lt;- matrix(0, 30, length(T_edge))
-spec12 &lt;- matrix(0, 30, length(T_edge))
-sens12 &lt;- matrix(0, 30, length(T_edge))
-spec21 &lt;- matrix(0, 30, length(T_edge))
-sens21 &lt;- matrix(0, 30, length(T_edge))
+spec1 &lt;- matrix(0, 50, length(T_edge))
+sens1 &lt;- matrix(0, 50, length(T_edge))
+spec2 &lt;- matrix(0, 50, length(T_edge))
+sens2 &lt;- matrix(0, 50, length(T_edge))
+spec12 &lt;- matrix(0, 50, length(T_edge))
+sens12 &lt;- matrix(0, 50, length(T_edge))
+spec21 &lt;- matrix(0, 50, length(T_edge))
+sens21 &lt;- matrix(0, 50, length(T_edge))
 mcmc_samples &lt;- list()
 
-# Generate 30 datasets
-for(seed in 1:30){
+# Generate 50 datasets
+for(seed in 1:50){
   print(seed)
   set.seed(seed)
   X1=cbind(1, rnorm(n_county))
@@ -2102,9 +2102,9 @@ sum(disease_diff)
 
 # estimate for &quot;disease difference&quot; in Table 2
 T_edged = c(15, 20, 22, 25, 30)
-specd &lt;- matrix(0, 30, length(T_edged))
-sensd &lt;- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd &lt;- matrix(0, 50, length(T_edged))
+sensd &lt;- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
 
   phis &lt;-  mcmc_samples[[seed]]$phi
@@ -2155,10 +2155,10 @@ table = cbind(T_edge, spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens
               spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
 
 # model fitting
-WAIC &lt;- rep(0,30)
-D_dagar &lt;- rep(0,30)
-KL &lt;- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC &lt;- rep(0,50)
+D_dagar &lt;- rep(0,50)
+KL &lt;- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)
@@ -2281,9 +2281,9 @@ sum(disease_diff)
 
 # estimate for &quot;disease difference&quot; in Table 2
 T_edged = c(15, 20, 22, 25, 30)
-specd &lt;- matrix(0, 30, length(T_edged))
-sensd &lt;- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd &lt;- matrix(0, 50, length(T_edged))
+sensd &lt;- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
   
   phis &lt;-  mcmc_samples[[seed]]$phi
@@ -2334,11 +2334,11 @@ table = cbind(T_edge, spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean
               spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
 
 # model fitting
-WAIC_car &lt;- rep(0,30)
-D_car &lt;- rep(0,30)
-Dn_car &lt;- rep(0,30)
+WAIC_car &lt;- rep(0,50)
+D_car &lt;- rep(0,50)
+Dn_car &lt;- rep(0,50)
 KL_car &lt;- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+for(seed in 1:50){
   print(seed)
   set.seed(seed)
   X1=cbind(1, rnorm(n_county))
@@ -2463,9 +2463,9 @@ sum(disease_diff)
 
 # estimate for &quot;disease difference&quot; in Table 2
 T_edged = c(15, 20, 22, 25, 30)
-specd &lt;- matrix(0, 30, length(T_edged))
-sensd &lt;- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd &lt;- matrix(0, 50, length(T_edged))
+sensd &lt;- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
   #seed = 1
   phis &lt;-  mcmc_samples[[seed]][,6:121]
@@ -2519,10 +2519,10 @@ table = cbind(T_edge, spec1_mean_dagar, sens1_mean_dagar, spec2_mean_dagar, sens
               spec12_mean_dagar, sens12_mean_dagar, spec21_mean_dagar, sens21_mean_dagar)
 
 # model fitting
-WAIC &lt;- rep(0,30)
-D_dagar &lt;- rep(0,30)
-KL &lt;- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC &lt;- rep(0,50)
+D_dagar &lt;- rep(0,50)
+KL &lt;- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
  
   set.seed(seed)
@@ -2639,9 +2639,9 @@ sum(disease_diff)
 
 # disease difference in Table 2
 T_edged = c(10, 15, 20,22, 25, 30)
-specd &lt;- matrix(0, 30, length(T_edged))
-sensd &lt;- matrix(0, 30, length(T_edged))
-for(seed in 1:30){
+specd &lt;- matrix(0, 50, length(T_edged))
+sensd &lt;- matrix(0, 50, length(T_edged))
+for(seed in 1:50){
   print(seed)
   #seed = 1
   phis &lt;-  mcmc_samples[[seed]][,6:121]
@@ -2694,10 +2694,10 @@ table = cbind(T_edge, spec1_mean_car, sens1_mean_car, spec2_mean_car, sens2_mean
               spec12_mean_car, sens12_mean_car, spec21_mean_car, sens21_mean_car)
 
 # model fitting
-WAIC_car &lt;- rep(0,30)
-D_car &lt;- rep(0,30)
-KL_car &lt;- matrix(0, nrow = 30, ncol = 10000)
-for(seed in 1:30){
+WAIC_car &lt;- rep(0,50)
+D_car &lt;- rep(0,50)
+KL_car &lt;- matrix(0, nrow = 50, ncol = 10000)
+for(seed in 1:50){
   print(seed)
 
   set.seed(seed)
@@ -2831,8 +2831,8 @@ KL_ARDP_Jcarc = readRDS(&quot;KL_ARDP_Jcarc25_1.rds&quot;)
 
 # Plots for WAIC
 WAIC_value = c(WAIC_ARDP_dagar_indc, WAIC_ARDP_Jdagarc, WAIC_ARDP_car_indc, WAIC_ARDP_Jcarc)
-Type = c(rep(&quot;DAGAR&quot;,60),rep(&quot;CAR&quot;,60))
-Model = c(rep(&quot;Independent-disease&quot;,30), rep(&quot;Joint&quot;,30), rep(&quot;Independent-disease&quot;,30), rep(&quot;Joint&quot;,30))
+Type = c(rep(&quot;DAGAR&quot;,100),rep(&quot;CAR&quot;,100))
+Model = c(rep(&quot;Independent-disease&quot;,50), rep(&quot;Joint&quot;,50), rep(&quot;Independent-disease&quot;,50), rep(&quot;Joint&quot;,50))
 Full_model = paste(Type, &quot;-&quot;, Model, sep=&quot;&quot;)
 df = data.frame(Model)
 df$WAIC = WAIC_value
