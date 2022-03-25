@@ -868,6 +868,11 @@ p = list()
 p_est=list()
 
 library(plyr)
+ca.poly$lung_SIR = rate_lung$standard_ratio
+ca.poly$esophagus_SIR = rate_esophagus$standard_ratio
+ca.poly$larynx_SIR = rate_larynx$standard_ratio
+ca.poly$colrect_SIR = rate_colrect$standard_ratio
+
 ca.poly@data$id <- rownames(ca.poly@data)
 ca.poly.f <- fortify(ca.poly, region = "id")
 ca.poly.df <- join(ca.poly.f, ca.poly@data, by = "id")
