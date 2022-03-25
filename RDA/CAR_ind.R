@@ -31,7 +31,7 @@ library(gtools)
 library(ggpubr)
 
 #Import covariates
-rate_5y <- read.csv("age_adjusted.csv")
+rate_5y <- read.csv("SIR_adjusted.csv")
 covariates <- read.csv("covariates.csv")
 race <- read.csv("race.csv")
 sex <- read.csv("sex.csv")
@@ -39,28 +39,11 @@ insurance <- read.csv("insurance.csv")
 smoking <- read.csv("smoking.csv")
 smoking$smoking <- as.numeric(substr(smoking$Cigarette.Smoking.Rate., 1,4))
 
-#Import incidence data for 4 cancers in California
-rate_CA = rate_5y[substr(rate_5y$State_county,1,2) == "CA",]
-
-rate_lung = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008=="Lung and Bronchus",]
-rate_lung = rate_lung[order(readr::parse_number(as.character(rate_lung$State_county))),]
-rate_lung$E_count = (sum(rate_lung$Count) / sum(rate_lung$Population)) * rate_lung$Population
-rate_lung$standard_ratio = rate_lung$Count / rate_lung$E_count
-
-rate_esophagus = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008=="Esophagus",]
-rate_esophagus = rate_esophagus[order(readr::parse_number(as.character(rate_esophagus$State_county))),]
-rate_esophagus$E_count = (sum(rate_esophagus$Count) / sum(rate_esophagus$Population)) * rate_esophagus$Population
-rate_esophagus$standard_ratio = rate_esophagus$Count / rate_esophagus$E_count
-
-rate_larynx = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008=="Larynx",]
-rate_larynx = rate_larynx[order(readr::parse_number(as.character(rate_larynx$State_county))),]
-rate_larynx$E_count = (sum(rate_larynx$Count) / sum(rate_larynx$Population)) * rate_larynx$Population
-rate_larynx$standard_ratio = rate_larynx$Count / rate_larynx$E_count
-
-rate_colrect = rate_CA[rate_CA$Site_recode_ICD_O_3_WHO_2008=="Colon and Rectum",]
-rate_colrect = rate_colrect[order(readr::parse_number(as.character(rate_colrect$State_county))),]
-rate_colrect$E_count = (sum(rate_colrect$Count) / sum(rate_colrect$Population)) * rate_colrect$Population
-rate_colrect$standard_ratio = rate_colrect$Count / rate_colrect$E_count
+#Import SIR data for 4 cancers in California
+rate_lung = rate_5y %>% filter(Site.code == "Lung and Bronchus")
+rate_esophagus = rate_5y %>% filter(Site.code == "Esophagus")
+rate_larynx = rate_5y %>% filter(Site.code == "Larynx")
+rate_colrect = rate_5y %>% filter(Site.code == "Colon and Rectum")
 
 county.ID <- sapply(strsplit(ca.county$names, ","), function(x) x[2])
 ca.poly = map2SpatialPolygons(ca.county, IDs=county.ID)
@@ -71,6 +54,41 @@ ca.poly$rate_colrect = rate_colrect$standard_ratio
 ca.poly$smoking = smoking$smoking
 
 ca.coords = coordinates(ca.poly)
+################## Data construction and adjacency matrix ###########
+
+## Data
+
+county_attribute = covariates[substr(covariates$State_county,1,2) == "CA",]
+county_attribute$state = extract_numeric(county_attribute$State_county)
+county_attribute1 = data.frame(county_attribute[order(county_attribute$state),])
+county_attribute1$V_Persons_age_18_ACS_2012_2016 = as.numeric(county_attribute1$V_Persons_age_18_ACS_2012_2016)/100
+county_attribute1$V_Persons_age_65_ACS_2012_2016 = as.numeric(county_attribute1$V_Persons_age_65_ACS_2012_2016)/100
+county_attribute1$VHighschooleducationACS2012201 = as.numeric(county_attribute1$VHighschooleducationACS2012201)/100
+county_attribute1$VFamiliesbelowpovertyACS201220 = as.numeric(county_attribute1$VFamiliesbelowpovertyACS201220)/100
+county_attribute1$V_Unemployed_ACS_2012_2016 = as.numeric(county_attribute1$V_Unemployed_ACS_2012_2016)/100
+
+race1 = race[substr(race$State_county,1,2) == "CA"&race$Race_recode_White_Black_Other=="Black",]
+sex1 = sex[substr(sex$State_county,1,2) == "CA"&sex$Sex=="Male",]
+insurance1 = insurance[substr(insurance$State_county,1,2) == "CA"&insurance$Insurance_Recode_2007=="Uninsured",]
+
+rate_lung1 = cbind(rate_lung, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
+colnames(rate_lung1) = c("county", "O_count", "E_count", "standard_ratio", "site", "smoking", "young","old", "highschool", "poverty", "unemployed", "black", "male", "uninsured")
+rate_esophagus1 = cbind(rate_esophagus, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
+colnames(rate_esophagus1) = c("county", "O_count", "E_count", "standard_ratio", "site", "smoking", "young","old", "highschool", "poverty", "unemployed", "black", "male", "uninsured")
+rate_larynx1 = cbind(rate_larynx, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
+colnames(rate_larynx1) = c("county", "O_count", "E_count", "standard_ratio", "site", "smoking", "young","old", "highschool", "poverty", "unemployed", "black", "male", "uninsured")
+rate_colrect1 = cbind(rate_colrect, smoking$smoking, county_attribute1[,2:6], race1$Row_Percent, sex1$Row_Percent,insurance1$Row_Percent)
+colnames(rate_colrect1) = c("county", "O_count", "E_count", "standard_ratio", "site", "smoking", "young","old", "highschool", "poverty", "unemployed", "black", "male", "uninsured")
+
+## Adjacency matrix and neighbor info
+ca.neighbors = poly2nb(ca.poly)
+n=length(ca.neighbors)
+
+Adj=sapply(ca.neighbors,function(x,n) {v=rep(0,n);v[x]=1;v},n)
+colnames(Adj)=county.ID
+ca.coord = coordinates(ca.poly)
+ca.latrange=round(quantile(ca.coord[,2],c(0.25,0.75)))
+ca.albersproj=mapproject(ca.coord[,1],ca.coord[,2],projection = "albers",param=ca.latrange)
 
 # Neighboring counties information
 neighborvec0 = NULL
@@ -143,20 +161,20 @@ D=matrix(0,n,n)
 for(i in 1:n) D[i,i]=ni[i]
 
 # Data in model
-Y1 = rate_lung1$count[final_perm]
-Y2 = rate_esophagus1$count[final_perm]
-Y3 = rate_larynx1$count[final_perm]
-Y4 = rate_colrect1$count[final_perm]
+Y1 = rate_lung1$O_count[final_perm]
+Y2 = rate_esophagus1$O_count[final_perm]
+Y3 = rate_larynx1$O_count[final_perm]
+Y4 = rate_colrect1$O_count[final_perm]
 
 E1 = rate_lung1$E_count[final_perm]
 E2 = rate_esophagus1$E_count[final_perm]
 E3 = rate_larynx1$E_count[final_perm]
 E4 = rate_colrect1$E_count[final_perm]
 
-X1 = as.matrix(cbind(1,rate_lung1[,8:14]))[final_perm,]
-X2 = as.matrix(cbind(1,rate_esophagus1[,8:14]))[final_perm,]
-X3 = as.matrix(cbind(1,rate_larynx1[,8:14]))[final_perm,]
-X4 = as.matrix(cbind(1,rate_colrect1[,8:14]))[final_perm,]
+X1 = as.matrix(cbind(1,rate_lung1[,6:14]))[final_perm,]
+X2 = as.matrix(cbind(1,rate_esophagus1[,6:14]))[final_perm,]
+X3 = as.matrix(cbind(1,rate_larynx1[,6:14]))[final_perm,]
+X4 = as.matrix(cbind(1,rate_colrect1[,6:14]))[final_perm,]
 
 Y = c(Y1,Y2,Y3,Y4)
 E = c(E1, E2, E3, E4)
@@ -405,6 +423,11 @@ p = list()
 p_est=list()
 
 library(plyr)
+ca.poly$lung_SIR = rate_lung$standard_ratio
+ca.poly$esophagus_SIR = rate_esophagus$standard_ratio
+ca.poly$larynx_SIR = rate_larynx$standard_ratio
+ca.poly$colrect_SIR = rate_colrect$standard_ratio
+
 ca.poly@data$id <- rownames(ca.poly@data)
 ca.poly.f <- fortify(ca.poly, region = "id")
 ca.poly.df <- join(ca.poly.f, ca.poly@data, by = "id")
@@ -454,76 +477,115 @@ path[[133]] <- path[[133]][-1,]
 
 #saveRDS(path, "path.rds")
 
+breaks1 = quantile(ca.poly$lung_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks2 = quantile(ca.poly$esophagus_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks3 = quantile(ca.poly$larynx_SIR, c(0.2, 0.4, 0.6, 0.8))
+breaks4 = quantile(ca.poly$colrect_SIR, c(0.2, 0.4, 0.6, 0.8))
+
+color = rev(brewer.pal(5,"RdBu"))
+
+ch_edge1 <- pvij1[which(est_diff1 == 1)]
 edge_plot1 <- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = lung_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, "white", "black"),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = "black",
-               fill = "white"
-  )
+               alpha = 0.6
+               #fill = "white"
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, "dotted", "solid")
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks1)
+
 for(i in which(est_diff1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "dodgerblue") +
+  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                      size = ((pvij1[i]- min(ch_edge1))/(max(ch_edge1) - min(ch_edge1)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=16, face="bold",hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste("Lung (T = ", T1, ")", sep=""))
 }
 
-for(i in which(est_diff1_1 == 1)){
-  edge_plot1 = edge_plot1 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red")
-}
 edge_plot1
 
+ch_edge2 <- pvij2[which(est_diff2 == 1)]
 edge_plot2 <- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = esophagus_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, "white", "black"),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = "black",
-               fill = "white"
-  )
+               alpha = 0.6
+               #fill = "white"
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, "dotted", "solid")
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks2)
 for(i in which(est_diff2 == 1)){
-  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plot2 = edge_plot2 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                      size = ((pvij2[i]- min(ch_edge2))/(max(ch_edge2) - min(ch_edge2)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=16, face="bold",hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste("Esophageal (T = ", T2, ")", sep=""))
 }
 edge_plot2
 
-
+ch_edge3 <- pvij3[which(est_diff3 == 1)]
 edge_plot3 <- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = larynx_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, "white", "black"),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = "black",
-               fill = "white"
-  )
+               alpha = 0.6
+               #fill = "white"
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, "dotted", "solid")
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks3)
 for(i in which(est_diff3 == 1)){
-  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plot3 = edge_plot3 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                      size = ((pvij3[i]- min(ch_edge3))/(max(ch_edge3) - min(ch_edge3)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=16, face="bold",hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste("Larynx (T = ", T3, ")", sep=""))
 }
 edge_plot3
 
-
+ch_edge4 <- pvij4[which(est_diff4 == 1)]
 edge_plot4 <- ggplot() +
-  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
+  geom_polygon(data = ca.poly.df,  aes(long, lat, group = group, fill = colrect_SIR),
+               #color = ifelse(ca.poly.df$zero_pos == 1, "white", "black"),
+               #alpha = ifelse(ca.poly.df$zero_pos == 1, 0.5, 1),
                color = "black",
-               fill = "white"
-  )
+               alpha = 0.6
+               #fill = "white"
+               #linetype = ifelse(ca.poly.df$zero_pos == 1, "dotted", "solid")
+  ) +
+  scale_fill_stepsn(colors = color,
+                    breaks = breaks4)
 for(i in which(est_diff4 == 1)){
-  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plot4 = edge_plot4 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                      size = ((pvij4[i]- min(ch_edge4))/(max(ch_edge4) - min(ch_edge4)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=16, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=16, face="bold",hjust = 0.5),
+          legend.title = element_blank()) +
     ggtitle(paste("Colorectal (T = ", T4, ")", sep=""))
 }
 edge_plot4
@@ -684,108 +746,116 @@ neighbor_list_diffc24 <- neighbor_list0[est_diffc24 == 1, ]
 est_diffc34 <- as.numeric(pvijc34 >= thresholdc34[T34c])
 neighbor_list_diffc34 <- neighbor_list0[est_diffc34 == 1, ]
 
+ch_edge12 <- pvijc12[est_diffc12==1]
 edge_plotc12 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc12==1)){
-  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc12 = edge_plotc12 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc12[i]- min(ch_edge12))/(max(ch_edge12) - min(ch_edge12)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Lung, Esophageal (T = ", T12c, ")", sep=""))
 }
 edge_plotc12
 
-
+ch_edge13 <- pvijc13[est_diffc13==1]
 edge_plotc13 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc13==1)){
-  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc13 = edge_plotc13 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc13[i]- min(ch_edge13))/(max(ch_edge13) - min(ch_edge13)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Lung, Layrnx (T = ", T13c, ")", sep=""))
 }
 edge_plotc13
 
-
+ch_edge14 <- pvijc14[est_diffc14==1]
 edge_plotc14 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc14==1)){
-  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc14 = edge_plotc14 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc14[i]- min(ch_edge14))/(max(ch_edge14) - min(ch_edge14)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Lung, Colorectal (T = ", T14c, ")", sep=""))
 }
 edge_plotc14
 
+ch_edge23 <- pvijc23[est_diffc23==1]
 edge_plotc23 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc23==1)){
-  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc23 = edge_plotc23 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc23[i]- min(ch_edge23))/(max(ch_edge23) - min(ch_edge23)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Esophageal, Layrnx (T = ", T23c, ")", sep=""))
 }
 edge_plotc23
 
-
+ch_edge24 <- pvijc24[est_diffc24==1]
 edge_plotc24 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc24==1)){
-  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc24 = edge_plotc24 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc24[i]- min(ch_edge24))/(max(ch_edge24) - min(ch_edge24)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Esophageal, Colorectal (T = ", T24c, ")", sep=""))
 }
 edge_plotc24
 
-
+ch_edge34 <- pvijc34[est_diffc34==1]
 edge_plotc34 <- ggplot() +
   geom_polygon(data = ca.poly.df,  aes(long, lat, group = group),
                color = "black",
                fill = "white"
   )
 for(i in which(est_diffc34==1)){
-  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red") +
+  edge_plotc34 = edge_plotc34 + geom_path(aes_string(x = path[[i]][,1], y = path[[i]][,2]), color = "red",
+                                          size = ((pvijc34[i]- min(ch_edge34))/(max(ch_edge34) - min(ch_edge34)))*0.5 + 0.5) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
           panel.background = element_blank(), axis.line = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
           axis.ticks = element_blank(),
-          plot.title = element_text(size=14, face="bold",hjust = 0.5)) + 
+          plot.title = element_text(size=14, face="bold",hjust = 0.5)) +
     ggtitle(paste("Larynx, Colorectal (T = ", T34c, ")", sep=""))
 }
 edge_plotc34
